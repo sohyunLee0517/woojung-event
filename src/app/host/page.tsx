@@ -183,6 +183,7 @@ export default function HostPage() {
     seqTimersRef.current.forEach(clearTimeout);
     seqRunningRef.current = false;
     setEarlyLeaveNames([]);
+    stopCamera();
     await resetEvent();
   };
 
