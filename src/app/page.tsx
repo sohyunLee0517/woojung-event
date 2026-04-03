@@ -87,7 +87,10 @@ export default function ViewerPage() {
   }, [eventState.temperature]);
 
   useEffect(() => {
-    if (videoRef.current && hostStream) videoRef.current.srcObject = hostStream;
+    if (videoRef.current && hostStream) {
+      videoRef.current.srcObject = hostStream;
+      videoRef.current.volume = 1;
+    }
   }, [hostStream]);
 
   // 참가자 목록 구독 + 3명 차면 LOBBY → WAITING + 리셋/이탈 감지
@@ -572,7 +575,7 @@ export default function ViewerPage() {
             ref={videoRef}
             autoPlay
             playsInline
-            muted
+            muted={false}
             className="w-full h-full object-cover"
             style={{ transition: "none" }}
           />
