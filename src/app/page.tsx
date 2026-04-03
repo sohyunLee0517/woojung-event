@@ -115,14 +115,15 @@ export default function ViewerPage() {
         const prevCount = Object.keys(prev).length;
         const curCount = Object.keys(v).length;
         if (prevCount >= 3 && curCount < 3) {
-          setWaitingBreakAlert((prev) =>
-            prev ?? {
-              title: "인원이 달라졌어요",
-              lines: [
-                "친구가 나갔어요.",
-                "다시 3명이 모이면 시작할 수 있어요.",
-              ],
-            }
+          setWaitingBreakAlert(
+            (prev) =>
+              prev ?? {
+                title: "인원이 달라졌어요",
+                lines: [
+                  "친구가 나갔어요.",
+                  "다시 3명이 모이면 시작할 수 있어요.",
+                ],
+              },
           );
           return;
         }
@@ -242,7 +243,7 @@ export default function ViewerPage() {
     const taken = Object.entries(viewers).some(
       ([sid, v]) =>
         sid !== sessionId.current &&
-        v.nickname.trim().toLowerCase() === name.toLowerCase()
+        v.nickname.trim().toLowerCase() === name.toLowerCase(),
     );
     if (taken) {
       setJoinError("이미 사용 중인 별명이에요");
@@ -278,7 +279,8 @@ export default function ViewerPage() {
     }, 300);
     setShowHint(false); // 첫 탭에 즉시 숨김
     const count = Math.max(1, Object.keys(viewers).length);
-    const gain = 2 / count; // 1명: +2, 2명: +1, 3명: +0.67
+    // 인원으로 나눈 합이 약 2.5°/탭이 되도록 (이전 2° 대비 조금 더 빠르게)
+    const gain = 2.5 / count;
     const next = Math.min(100, (tempRef.current ?? 0) + gain);
     await Promise.all([
       setTemperature(next),
@@ -310,7 +312,7 @@ export default function ViewerPage() {
       viewerEntries.some(
         ([sid, v]) =>
           sid !== sessionId.current &&
-          v.nickname.trim().toLowerCase() === nickname.trim().toLowerCase()
+          v.nickname.trim().toLowerCase() === nickname.trim().toLowerCase(),
       );
     return (
       <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-8 px-8">
@@ -500,7 +502,7 @@ export default function ViewerPage() {
       .sort((a, b) =>
         b.taps !== a.taps
           ? b.taps - a.taps
-          : a.nickname.localeCompare(b.nickname, "ko")
+          : a.nickname.localeCompare(b.nickname, "ko"),
       );
     return (
       <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center px-6 py-10 gap-8">
@@ -558,9 +560,6 @@ export default function ViewerPage() {
           <p className="text-white font-black text-2xl">게임이 중단됐습니다</p>
           <p className="text-white/40 text-sm mt-2">
             누군가 게임 도중 이탈하거나 새로고침했어요
-          </p>
-          <p className="text-white/30 text-xs mt-4 max-w-xs mx-auto leading-relaxed">
-            주최자가 게임을 리셋할 때까지 이 화면이 유지됩니다
           </p>
         </div>
       </div>
@@ -728,11 +727,6 @@ export default function ViewerPage() {
               🔥
             </span>
           </button>
-          <p className="text-white/30 text-xs">
-            {viewerCount === 1 && "혼자 도전 중 (+2°/탭)"}
-            {viewerCount === 2 && "둘이서 협력 중 (+1°/탭)"}
-            {viewerCount >= 3 && "셋이서 협력 중 (+0.7°/탭)"}
-          </p>
         </div>
       )}
     </div>

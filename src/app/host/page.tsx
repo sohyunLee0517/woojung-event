@@ -127,7 +127,8 @@ export default function HostPage() {
     return () => unsub();
   }, [startSequence]);
 
-  // 자동 온도 하락: PLAYING 중 1초마다 -0.2°
+  // 자동 온도 하락: PLAYING 중 1초마다 (탭 상승과 균형 — 너무 느리게 떨어지지 않게 약하게)
+  const TEMP_DECAY_PER_SEC = 0.12;
   useEffect(() => {
     if (status !== "PLAYING") {
       if (decayRef.current) { clearInterval(decayRef.current); decayRef.current = null; }
@@ -135,7 +136,7 @@ export default function HostPage() {
     }
     decayRef.current = setInterval(() => {
       if (statusRef.current !== "PLAYING") return;
-      const next = Math.max(0, tempRef.current - 0.2);
+      const next = Math.max(0, tempRef.current - TEMP_DECAY_PER_SEC);
       setTemperature(next);
     }, 1000);
     return () => { if (decayRef.current) { clearInterval(decayRef.current); decayRef.current = null; } };
