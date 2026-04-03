@@ -127,8 +127,8 @@ export default function HostPage() {
     return () => unsub();
   }, [startSequence]);
 
-  // 자동 온도 하락: PLAYING 중 1초마다 (탭 상승과 균형 — 너무 느리게 떨어지지 않게 약하게)
-  const TEMP_DECAY_PER_SEC = 0.12;
+  // 자동 온도 하락: PLAYING 중 1초마다 (탭 목표 300×인원 근처가 되도록 약하게)
+  const TEMP_DECAY_PER_SEC = 0.05;
   useEffect(() => {
     if (status !== "PLAYING") {
       if (decayRef.current) { clearInterval(decayRef.current); decayRef.current = null; }

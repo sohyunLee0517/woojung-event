@@ -279,8 +279,9 @@ export default function ViewerPage() {
     }, 300);
     setShowHint(false); // 첫 탭에 즉시 숨김
     const count = Math.max(1, Object.keys(viewers).length);
-    // 인원으로 나눈 합이 약 2.5°/탭이 되도록 (이전 2° 대비 조금 더 빠르게)
-    const gain = 2.5 / count;
+    // 3명×각 300탭(총 900탭) ≈ 100° 목표: 100 / (300 × 인원)
+    const TAP_GOAL_PER_PERSON = 300;
+    const gain = 100 / (TAP_GOAL_PER_PERSON * count);
     const next = Math.min(100, (tempRef.current ?? 0) + gain);
     await Promise.all([
       setTemperature(next),
