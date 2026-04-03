@@ -31,6 +31,14 @@ const STATUS_COLORS: Record<EventStatus, string> = {
   ABORTED: "#ef4444",
 };
 
+/** 이탈 시 중단 처리할 진행 단계 (누군가 새로고침·이탈) */
+const ABORT_ON_LEAVE: readonly EventStatus[] = [
+  "PLAYING",
+  "CELEBRATION",
+  "BLACKOUT",
+  "REVEAL",
+];
+
 export default function HostPage() {
   const [status, setStatusLocal] = useState<EventStatus>("WAITING");
   const [temperature, setTempLocal] = useState(0);
@@ -80,8 +88,8 @@ export default function HostPage() {
         setShowStartAlert(false);
       }
 
-      // 게임 중 이탈 감지 → ABORTED (세션 삭제 없이 상태만 변경)
-      if (statusRef.current === "PLAYING") {
+      // 진행 중 이탈·새로고침(onDisconnect) 감지 → ABORTED
+      if (ABORT_ON_LEAVE.includes(statusRef.current)) {
         const left = Object.keys(prev).filter((id) => !v[id]);
         if (left.length > 0) {
           const names = left.map((id) => prev[id].nickname);
@@ -138,6 +146,11 @@ export default function HostPage() {
     setCameraOn(false);
   }, []);
 
+  // ABORTED 시 카메라 강제 종료 (공개 단계 포함)
+  useEffect(() => {
+    if (status === "ABORTED") stopCamera();
+  }, [status, stopCamera]);
+
   const handleTempChange = async (delta: number) => {
     const next = Math.round((temperature + delta) * 10) / 10;
     const clamped = Math.min(100, Math.max(0, next));
@@ -157,6 +170,7 @@ export default function HostPage() {
   const handleReset = async () => {
     seqTimersRef.current.forEach(clearTimeout);
     seqRunningRef.current = false;
+    setEarlyLeaveNames([]);
     await resetEvent();
   };
 
@@ -178,8 +192,8 @@ export default function HostPage() {
         </span>
       </div>
 
-      {/* 이탈 안내 배너 */}
-      {earlyLeaveNames.length > 0 && (
+      {/* 이탈 안내 (ABORTED 전용 화면이 아닐 때만) */}
+      {earlyLeaveNames.length > 0 && status !== "ABORTED" && (
         <div className="mx-5 mt-4 rounded-2xl p-4 flex items-start justify-between gap-3"
           style={{ background: "#ef444422", border: "2px solid #ef4444" }}>
           <div>
@@ -193,8 +207,39 @@ export default function HostPage() {
         </div>
       )}
 
+      {/* ABORTED: 다른 조작 불가, 리셋으로만 복구 */}
+      {status === "ABORTED" && (
+        <div
+          className="mx-5 mt-4 rounded-2xl p-6 flex flex-col items-center gap-4 text-center"
+          style={{ background: "#ef444422", border: "2px solid #ef4444" }}
+        >
+          <div>
+            <p className="text-white font-black text-lg">게임이 중단됐습니다</p>
+            {earlyLeaveNames.length > 0 && (
+              <p className="text-white/60 text-sm mt-2">
+                {earlyLeaveNames.join(", ")}님 연결이 끊겼어요 (새로고침·이탈)
+              </p>
+            )}
+            <p className="text-white/40 text-xs mt-3">
+              아래 버튼으로 초기화하면 참가자 화면도 함께 돌아갑니다. 카메라는 꺼진 상태입니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="w-full max-w-sm py-4 rounded-xl font-black text-white text-lg active:scale-[0.98] transition-transform"
+            style={{
+              background: "linear-gradient(135deg, #f97316, #dc2626)",
+              boxShadow: "0 0 24px rgba(239,68,68,0.45)",
+            }}
+          >
+            게임 리셋 · 처음부터
+          </button>
+        </div>
+      )}
+
       {/* 3명 모임 알럿 */}
-      {showStartAlert && (
+      {showStartAlert && status !== "ABORTED" && (
         <div className="mx-5 mt-4 rounded-2xl p-4 flex flex-col gap-3"
           style={{ background: "#22c55e22", border: "2px solid #22c55e" }}>
           <div>
@@ -222,7 +267,10 @@ export default function HostPage() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col gap-5 p-5">
+      <div
+        className={`flex-1 flex flex-col gap-5 p-5 ${status === "ABORTED" ? "pointer-events-none opacity-30 select-none" : ""}`}
+        aria-hidden={status === "ABORTED"}
+      >
 
         {/* 친구 화면 미리보기 (PLAYING 이상일 때) */}
         {(status === "PLAYING" || status === "CELEBRATION") && (

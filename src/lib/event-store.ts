@@ -42,8 +42,12 @@ const WEBRTC_PATH = "woojung-webrtc";
 
 export function watchEventState(callback: (state: EventState) => void): () => void {
   const stateRef = ref(db, EVENT_PATH);
+  const defaultState: EventState = { status: "WAITING", temperature: 0 };
   const unsub = onValue(stateRef, (snap) => {
-    if (snap.exists()) callback(snap.val() as EventState);
+    const state: EventState = snap.exists()
+      ? (snap.val() as EventState)
+      : defaultState;
+    callback(state);
   });
   return unsub;
 }
