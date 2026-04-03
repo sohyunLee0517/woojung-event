@@ -1,5 +1,14 @@
 import { db } from "@/lib/firebase";
-import { ref, set, update, onValue, get, remove, onDisconnect } from "firebase/database";
+import {
+  ref,
+  set,
+  update,
+  onValue,
+  get,
+  remove,
+  onDisconnect,
+  runTransaction,
+} from "firebase/database";
 import type { EventState, EventStatus } from "./types";
 
 const VIEWERS_PATH = "woojung-viewers";
@@ -17,18 +26,40 @@ export function watchViewers(callback: (viewers: Record<string, ViewerInfo>) => 
   return unsub;
 }
 
-// 참가 시도: 성공 시 true, 정원 초과 시 false
-export async function tryJoinViewer(sessionId: string, nickname: string): Promise<boolean> {
+export type JoinViewerResult = "ok" | "full" | "duplicate";
+
+function normalizeNicknameKey(n: string): string {
+  return n.trim().toLowerCase();
+}
+
+// 참가 시도: 정원 초과·이미 사용 중인 별명이면 거절
+export async function tryJoinViewer(
+  sessionId: string,
+  nickname: string
+): Promise<JoinViewerResult> {
   const snap = await get(ref(db, VIEWERS_PATH));
-  const current = snap.exists() ? Object.keys(snap.val()).length : 0;
-  if (current >= 3) return false;
+  const viewers: Record<string, ViewerInfo> = snap.exists()
+    ? (snap.val() as Record<string, ViewerInfo>)
+    : {};
+  const ids = Object.keys(viewers);
+  if (ids.length >= 3) return "full";
+
+  const key = normalizeNicknameKey(nickname);
+  if (!key) return "duplicate";
+
+  const taken = ids.some(
+    (id) =>
+      id !== sessionId &&
+      normalizeNicknameKey(viewers[id]?.nickname ?? "") === key
+  );
+  if (taken) return "duplicate";
 
   const viewerRef = ref(db, `${VIEWERS_PATH}/${sessionId}`);
-  const data: ViewerInfo = { nickname, joinedAt: Date.now() };
+  const data: ViewerInfo = { nickname: nickname.trim(), joinedAt: Date.now() };
   await set(viewerRef, data);
   // 연결 끊기면 자동 삭제
   onDisconnect(viewerRef).remove();
-  return true;
+  return "ok";
 }
 
 export async function leaveViewer(sessionId: string): Promise<void> {
@@ -37,6 +68,8 @@ export async function leaveViewer(sessionId: string): Promise<void> {
 
 const EVENT_PATH = "woojung-event";
 const WEBRTC_PATH = "woojung-webrtc";
+/** 세션별 탭 수 (온도와 별도 경로 — 동시 쓰기 충돌 방지) */
+const TAPS_PATH = "woojung-taps";
 
 // ─── 상태 읽기 / 쓰기 ─────────────────────────────────────────────────────────
 
@@ -61,6 +94,27 @@ export async function initEventState(): Promise<void> {
   await set(ref(db, EVENT_PATH), { status: "WAITING", temperature: 0 } satisfies EventState);
   await remove(ref(db, WEBRTC_PATH));
   await remove(ref(db, VIEWERS_PATH));
+  await remove(ref(db, TAPS_PATH));
+}
+
+/** 탭 1회 기록 (게임 중 순위 집계) */
+export async function incrementTapScore(sessionId: string): Promise<void> {
+  await runTransaction(ref(db, TAPS_PATH), (current) => {
+    const scores = (current as Record<string, number> | null) ?? {};
+    return {
+      ...scores,
+      [sessionId]: (scores[sessionId] ?? 0) + 1,
+    };
+  });
+}
+
+export function watchTapScores(
+  callback: (scores: Record<string, number>) => void
+): () => void {
+  const unsub = onValue(ref(db, TAPS_PATH), (snap) => {
+    callback(snap.exists() ? (snap.val() as Record<string, number>) : {});
+  });
+  return unsub;
 }
 
 export async function setStatus(status: EventStatus): Promise<void> {

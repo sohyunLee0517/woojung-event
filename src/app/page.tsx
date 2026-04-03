@@ -8,6 +8,8 @@ import {
   watchViewers,
   tryJoinViewer,
   leaveViewer,
+  incrementTapScore,
+  watchTapScores,
   type ViewerInfo,
 } from "@/lib/event-store";
 import {
@@ -18,6 +20,7 @@ import {
 } from "@/lib/sounds";
 import { ViewerReceiver } from "@/lib/webrtc";
 import TemperatureGauge from "@/components/TemperatureGauge";
+import GameAlert from "@/components/GameAlert";
 
 type Phase =
   | "GATE"
@@ -25,6 +28,7 @@ type Phase =
   | "WAITING"
   | "PLAYING"
   | "CELEBRATION"
+  | "RANKING"
   | "BLACKOUT"
   | "REVEAL"
   | "ABORTED";
@@ -59,6 +63,12 @@ export default function ViewerPage() {
   const [showHint, setShowHint] = useState(false);
   /** Firebase 이벤트 첫 수신 전 — 별명 화면 깜빡임 방지 */
   const [eventHydrated, setEventHydrated] = useState(false);
+  /** 대기 중 인원 이탈 시 커스텀 알럿 */
+  const [waitingBreakAlert, setWaitingBreakAlert] = useState<{
+    title: string;
+    lines: string[];
+  } | null>(null);
+  const [tapScores, setTapScores] = useState<Record<string, number>>({});
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const receiverRef = useRef<ViewerReceiver | null>(null);
@@ -92,6 +102,27 @@ export default function ViewerPage() {
       if (phase === "LOBBY" && Object.keys(v).length >= 3) {
         setPhase("WAITING");
         return;
+      }
+
+      // 호스트 게임 시작 대기(WAITING) 중 한 명이라도 이탈 → 알럿 후 별명 화면
+      if (
+        phaseRef.current === "WAITING" &&
+        eventStatusRef.current === "WAITING"
+      ) {
+        const prevCount = Object.keys(prev).length;
+        const curCount = Object.keys(v).length;
+        if (prevCount >= 3 && curCount < 3) {
+          setWaitingBreakAlert((prev) =>
+            prev ?? {
+              title: "인원이 달라졌어요",
+              lines: [
+                "친구가 나갔어요.",
+                "다시 3명이 모이면 시작할 수 있어요.",
+              ],
+            }
+          );
+          return;
+        }
       }
 
       // 내 세션이 사라졌다 = 호스트 리셋(뷰어 목록 초기화) 등 → GATE로 복귀
@@ -145,6 +176,7 @@ export default function ViewerPage() {
       fireConfetti();
       playFanfare();
     }
+    if (newStatus === "RANKING" && cur !== "RANKING") setPhase("RANKING");
     if (newStatus === "BLACKOUT" && cur !== "BLACKOUT") setPhase("BLACKOUT");
     if (newStatus === "REVEAL" && cur !== "REVEAL") {
       setPhase("REVEAL");
@@ -163,7 +195,12 @@ export default function ViewerPage() {
   }, [handleStatusChange]);
 
   useEffect(() => {
-    if (phase === "GATE" || phase === "ABORTED") {
+    const unsub = watchTapScores(setTapScores);
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "REVEAL") {
       setHostStream(null);
       receiverRef.current?.disconnect();
       receiverRef.current = null;
@@ -178,6 +215,14 @@ export default function ViewerPage() {
     };
   }, [phase]);
 
+  const handleWaitingBreakConfirm = useCallback(() => {
+    setWaitingBreakAlert(null);
+    void leaveViewer(sessionId.current);
+    myNickname.current = "";
+    setNickname("");
+    setPhase("GATE");
+  }, []);
+
   // 페이지 떠날 때 참가자 제거
   useEffect(() => {
     return () => {
@@ -191,15 +236,29 @@ export default function ViewerPage() {
       setJoinError("별명을 입력해주세요");
       return;
     }
+    const taken = Object.entries(viewers).some(
+      ([sid, v]) =>
+        sid !== sessionId.current &&
+        v.nickname.trim().toLowerCase() === name.toLowerCase()
+    );
+    if (taken) {
+      setJoinError("이미 사용 중인 별명이에요");
+      return;
+    }
     setJoining(true);
     setJoinError("");
 
     await resumeAudio();
     getAudioContext();
 
-    const ok = await tryJoinViewer(sessionId.current, name);
-    if (!ok) {
+    const joinResult = await tryJoinViewer(sessionId.current, name);
+    if (joinResult === "full") {
       setJoinError("이미 3명이 입장했습니다 😢");
+      setJoining(false);
+      return;
+    }
+    if (joinResult === "duplicate") {
+      setJoinError("이미 사용 중인 별명이에요");
       setJoining(false);
       return;
     }
@@ -218,7 +277,10 @@ export default function ViewerPage() {
     const count = Math.max(1, Object.keys(viewers).length);
     const gain = 2 / count; // 1명: +2, 2명: +1, 3명: +0.67
     const next = Math.min(100, (tempRef.current ?? 0) + gain);
-    await setTemperature(next);
+    await Promise.all([
+      setTemperature(next),
+      incrementTapScore(sessionId.current),
+    ]);
     setTapFlash(true);
     setTimeout(() => setTapFlash(false), 150);
   };
@@ -240,6 +302,13 @@ export default function ViewerPage() {
 
   // ─── GATE ─────────────────────────────────────────────────────────────────
   if (phase === "GATE") {
+    const nicknameTaken =
+      nickname.trim().length > 0 &&
+      viewerEntries.some(
+        ([sid, v]) =>
+          sid !== sessionId.current &&
+          v.nickname.trim().toLowerCase() === nickname.trim().toLowerCase()
+      );
     return (
       <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-8 px-8">
         <div className="text-center">
@@ -289,12 +358,17 @@ export default function ViewerPage() {
             style={{ background: "#ffffff11", border: "2px solid #ffffff22" }}
             autoFocus
           />
+          {nicknameTaken && (
+            <p className="text-amber-400/90 text-sm text-center">
+              이미 입장한 별명이에요
+            </p>
+          )}
           {joinError && (
             <p className="text-red-400 text-sm text-center">{joinError}</p>
           )}
           <button
             onClick={handleEnter}
-            disabled={joining || viewerCount >= 3}
+            disabled={joining || viewerCount >= 3 || nicknameTaken}
             className="w-full py-4 rounded-2xl text-lg font-bold text-white
                        disabled:opacity-40 active:scale-95 transition-transform"
             style={{
@@ -398,6 +472,78 @@ export default function ViewerPage() {
     );
   }
 
+  // ─── CELEBRATION: 폭죽만 (순위는 다음 단계) ───────────────────────────────
+  if (phase === "CELEBRATION") {
+    return (
+      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center px-6">
+        <p className="text-7xl mb-6">🎉</p>
+        <p className="text-white font-black text-3xl text-center tracking-tight">
+          MAX 우정!
+        </p>
+        <p className="text-white/45 text-sm mt-3">100° 달성</p>
+      </div>
+    );
+  }
+
+  // ─── RANKING: 탭 횟수 순위 ───────────────────────────────────────────────
+  if (phase === "RANKING") {
+    const medals = ["🥇", "🥈", "🥉"];
+    const ranked = [...viewerEntries]
+      .map(([sid, v]) => ({
+        sid,
+        nickname: v.nickname,
+        taps: tapScores[sid] ?? 0,
+      }))
+      .sort((a, b) =>
+        b.taps !== a.taps
+          ? b.taps - a.taps
+          : a.nickname.localeCompare(b.nickname, "ko")
+      );
+    return (
+      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center px-6 py-10 gap-8">
+        <div className="text-center">
+          <p className="text-white/50 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
+            우정 온도 기여
+          </p>
+          <p className="text-white font-black text-2xl">탭 순위</p>
+        </div>
+        <ul className="flex flex-col gap-3 w-full max-w-sm">
+          {ranked.map((row, i) => (
+            <li
+              key={row.sid}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+              style={{
+                background:
+                  row.sid === sessionId.current ? "#f9731618" : "#ffffff08",
+                border: `1.5px solid ${
+                  row.sid === sessionId.current ? "#f9731655" : "#ffffff18"
+                }`,
+              }}
+            >
+              <span className="text-2xl w-10 text-center shrink-0">
+                {medals[i] ?? `${i + 1}위`}
+              </span>
+              <span className="text-white font-bold flex-1 min-w-0 truncate">
+                {row.nickname}
+                {row.sid === sessionId.current && (
+                  <span className="text-orange-400 font-semibold text-sm ml-1">
+                    (나)
+                  </span>
+                )}
+              </span>
+              <span
+                className="text-orange-400 font-black tabular-nums text-lg shrink-0"
+                style={{ textShadow: "0 0 20px rgba(249,115,22,0.35)" }}
+              >
+                {row.taps}탭
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   if (phase === "BLACKOUT") return <div className="w-full h-full bg-black" />;
 
   // ─── ABORTED ──────────────────────────────────────────────────────────────
@@ -442,29 +588,38 @@ export default function ViewerPage() {
 
   if (phase === "WAITING") {
     return (
-      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-6 px-6">
-        <>
-          <div className="text-center animate-pulse">
-            <p className="text-5xl mb-4">🌡️</p>
-            <p className="text-white/60 text-lg">잠시 후 시작됩니다...</p>
-          </div>
-          <div className="flex gap-2">
-            {viewerEntries.map(([sid, v]) => (
-              <div
-                key={sid}
-                className="px-3 py-1 rounded-full text-sm font-bold"
-                style={{
-                  background: "#f9731622",
-                  border: "1px solid #f97316",
-                  color: "#f97316",
-                }}
-              >
-                {v.nickname}
-              </div>
-            ))}
-          </div>
-        </>
-      </div>
+      <>
+        <GameAlert
+          open={waitingBreakAlert !== null}
+          title={waitingBreakAlert?.title ?? ""}
+          lines={waitingBreakAlert?.lines ?? []}
+          confirmLabel="알겠어요"
+          onConfirm={handleWaitingBreakConfirm}
+        />
+        <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-6 px-6">
+          <>
+            <div className="text-center animate-pulse">
+              <p className="text-5xl mb-4">🌡️</p>
+              <p className="text-white/60 text-lg">잠시 후 시작됩니다...</p>
+            </div>
+            <div className="flex gap-2">
+              {viewerEntries.map(([sid, v]) => (
+                <div
+                  key={sid}
+                  className="px-3 py-1 rounded-full text-sm font-bold"
+                  style={{
+                    background: "#f9731622",
+                    border: "1px solid #f97316",
+                    color: "#f97316",
+                  }}
+                >
+                  {v.nickname}
+                </div>
+              ))}
+            </div>
+          </>
+        </div>
+      </>
     );
   }
 
@@ -501,19 +656,6 @@ export default function ViewerPage() {
 
       {/* 중앙: 게이지 */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 pointer-events-none">
-        {phase === "CELEBRATION" && (
-          <p
-            className="text-4xl font-black animate-bounce px-6 py-3 rounded-2xl"
-            style={{
-              color: "#fff",
-              background: "rgba(239,68,68,0.85)",
-              boxShadow: "0 0 40px #ef444488",
-              textShadow: "0 2px 8px rgba(0,0,0,0.6)",
-            }}
-          >
-            🎉 축하합니다! 🎉
-          </p>
-        )}
         <TemperatureGauge temperature={temp} />
         <p className="text-white/30 text-sm tracking-widest">
           {temp < 30 && "냉랭함 ❄️"}

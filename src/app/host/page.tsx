@@ -17,6 +17,7 @@ const STATUS_LABELS: Record<EventStatus, string> = {
   WAITING: "⏳ 대기 중",
   PLAYING: "🎮 진행 중",
   CELEBRATION: "🎉 폭죽!",
+  RANKING: "🏆 순위",
   BLACKOUT: "⬛ 암전",
   REVEAL: "🎬 등장",
   ABORTED: "🚨 중단됨",
@@ -26,6 +27,7 @@ const STATUS_COLORS: Record<EventStatus, string> = {
   WAITING: "#6b7280",
   PLAYING: "#22c55e",
   CELEBRATION: "#f59e0b",
+  RANKING: "#a855f7",
   BLACKOUT: "#1f2937",
   REVEAL: "#ef4444",
   ABORTED: "#ef4444",
@@ -35,6 +37,7 @@ const STATUS_COLORS: Record<EventStatus, string> = {
 const ABORT_ON_LEAVE: readonly EventStatus[] = [
   "PLAYING",
   "CELEBRATION",
+  "RANKING",
   "BLACKOUT",
   "REVEAL",
 ];
@@ -55,20 +58,28 @@ export default function HostPage() {
   const decayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seqRunningRef = useRef(false); // stale closure 방지용 ref
 
-  // 3단계 자동 시퀀스 (ref로 guard)
+  /** 폭죽 → 순위 → 암전 3초 → 두둥+영상 */
+  const CELEBRATION_MS = 3000;
+  const RANKING_MS = 4000;
+  const BLACKOUT_MS = 3000;
+
   const startSequence = useCallback(() => {
     if (seqRunningRef.current) return;
     seqRunningRef.current = true;
 
     setStatus("CELEBRATION");
 
-    const t1 = setTimeout(() => setStatus("BLACKOUT"), 3000);
-    const t2 = setTimeout(() => {
+    const t1 = setTimeout(() => setStatus("RANKING"), CELEBRATION_MS);
+    const t2 = setTimeout(
+      () => setStatus("BLACKOUT"),
+      CELEBRATION_MS + RANKING_MS
+    );
+    const t3 = setTimeout(() => {
       setStatus("REVEAL");
       seqRunningRef.current = false;
-    }, 4000);
+    }, CELEBRATION_MS + RANKING_MS + BLACKOUT_MS);
 
-    seqTimersRef.current = [t1, t2];
+    seqTimersRef.current = [t1, t2, t3];
   }, []);
 
   // 참가자 감시 — 3명 모이면 자동 시작 알럿 / 게임 중 이탈 감지
@@ -273,7 +284,9 @@ export default function HostPage() {
       >
 
         {/* 친구 화면 미리보기 (PLAYING 이상일 때) */}
-        {(status === "PLAYING" || status === "CELEBRATION") && (
+        {(status === "PLAYING" ||
+          status === "CELEBRATION" ||
+          status === "RANKING") && (
           <div className="bg-white/5 rounded-2xl p-5">
             <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-4">현재 친구들 화면</p>
             <TemperatureGauge temperature={temperature} />
