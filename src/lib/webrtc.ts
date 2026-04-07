@@ -16,33 +16,6 @@ const RTC_CONFIG: RTCConfiguration = {
   ],
 };
 
-/** 기본 대역폭보다 높게 — 화질(특히 텍스트·얼굴) 개선 */
-const VIDEO_MAX_BITRATE_BPS = 3_500_000;
-const AUDIO_MAX_BITRATE_BPS = 128_000;
-
-async function applyOutgoingBitrate(pc: RTCPeerConnection): Promise<void> {
-  for (const sender of pc.getSenders()) {
-    const track = sender.track;
-    if (!track) continue;
-    try {
-      const params = sender.getParameters();
-      const enc0 = params.encodings?.[0]
-        ? { ...params.encodings[0] }
-        : ({} as RTCRtpEncodingParameters);
-      if (track.kind === "video") {
-        enc0.maxBitrate = VIDEO_MAX_BITRATE_BPS;
-        enc0.maxFramerate = 30;
-      } else if (track.kind === "audio") {
-        enc0.maxBitrate = AUDIO_MAX_BITRATE_BPS;
-      }
-      params.encodings = [enc0, ...(params.encodings?.slice(1) ?? [])];
-      await sender.setParameters(params);
-    } catch {
-      /* 일부 브라우저/단계에서는 실패할 수 있음 */
-    }
-  }
-}
-
 // ─── Host ────────────────────────────────────────────────────────────────────
 
 export class HostBroadcaster {
@@ -53,19 +26,8 @@ export class HostBroadcaster {
   async startCamera(): Promise<MediaStream> {
     if (!this.stream) {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 30, max: 30 },
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 48000,
-        },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+        audio: false,
       });
     }
     return this.stream;
@@ -96,23 +58,12 @@ export class HostBroadcaster {
 
     this.stream.getTracks().forEach((track) => pc.addTrack(track, this.stream!));
 
-    const onConn = () => {
-      if (pc.connectionState === "connected") {
-        void applyOutgoingBitrate(pc);
-      }
-    };
-    pc.addEventListener("connectionstatechange", onConn);
-    this.cleanups.push(() =>
-      pc.removeEventListener("connectionstatechange", onConn)
-    );
-
     // 뷰어의 answer 수신
     const answerRef = ref(db, `${WEBRTC_PATH}/${sessionId}/answer`);
     const unsubAnswer = onValue(answerRef, async (snap) => {
       if (!snap.exists()) return;
       if (pc.signalingState === "have-local-offer") {
         await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
-        void applyOutgoingBitrate(pc);
       }
     });
     this.cleanups.push(unsubAnswer);
@@ -163,11 +114,9 @@ export class ViewerReceiver {
   async connect(onStream: (stream: MediaStream) => void): Promise<void> {
     const pc = new RTCPeerConnection(RTC_CONFIG);
     this.pc = pc;
-    const inbound = new MediaStream();
 
     pc.ontrack = (ev) => {
-      inbound.addTrack(ev.track);
-      onStream(inbound);
+      if (ev.streams[0]) onStream(ev.streams[0]);
     };
 
     // 뷰어의 ICE candidates 전송 (await 전에 등록)

@@ -1,17 +1,25 @@
 import { db } from "@/lib/firebase";
-import {
-  ref,
-  set,
-  update,
-  onValue,
-  get,
-  remove,
-  onDisconnect,
-  runTransaction,
-} from "firebase/database";
+import { ref, set, update, onValue, get, remove, onDisconnect, increment } from "firebase/database";
 import type { EventState, EventStatus } from "./types";
 
 const VIEWERS_PATH = "woojung-viewers";
+const CONTRIBUTIONS_PATH = "woojung-contributions";
+
+export interface ContributionInfo {
+  nickname: string;
+  total: number;
+}
+
+export function watchContributions(callback: (data: Record<string, ContributionInfo>) => void): () => void {
+  return onValue(ref(db, CONTRIBUTIONS_PATH), (snap) => {
+    callback(snap.exists() ? (snap.val() as Record<string, ContributionInfo>) : {});
+  });
+}
+
+export async function incrementContribution(sessionId: string, nickname: string, amount: number): Promise<void> {
+  const contribRef = ref(db, `${CONTRIBUTIONS_PATH}/${sessionId}`);
+  await update(contribRef, { nickname, total: increment(amount) });
+}
 
 export interface ViewerInfo {
   nickname: string;
@@ -26,38 +34,21 @@ export function watchViewers(callback: (viewers: Record<string, ViewerInfo>) => 
   return unsub;
 }
 
-export type JoinViewerResult = "ok" | "full" | "duplicate";
-
-function normalizeNicknameKey(n: string): string {
-  return n.trim().toLowerCase();
-}
-
-// 참가 시도: 정원 초과·이미 사용 중인 별명이면 거절
-export async function tryJoinViewer(
-  sessionId: string,
-  nickname: string
-): Promise<JoinViewerResult> {
+// 참가 시도: "ok" | "full" | "duplicate"
+export async function tryJoinViewer(sessionId: string, nickname: string): Promise<"ok" | "full" | "duplicate"> {
   const snap = await get(ref(db, VIEWERS_PATH));
-  const viewers: Record<string, ViewerInfo> = snap.exists()
-    ? (snap.val() as Record<string, ViewerInfo>)
-    : {};
-  const ids = Object.keys(viewers);
-  if (ids.length >= 3) return "full";
-
-  const key = normalizeNicknameKey(nickname);
-  if (!key) return "duplicate";
-
-  const taken = ids.some(
-    (id) =>
-      id !== sessionId &&
-      normalizeNicknameKey(viewers[id]?.nickname ?? "") === key
-  );
-  if (taken) return "duplicate";
+  if (snap.exists()) {
+    const viewers = snap.val() as Record<string, ViewerInfo>;
+    if (Object.keys(viewers).length >= 3) return "full";
+    const isDuplicate = Object.values(viewers).some(
+      (v) => v.nickname.trim().toLowerCase() === nickname.trim().toLowerCase()
+    );
+    if (isDuplicate) return "duplicate";
+  }
 
   const viewerRef = ref(db, `${VIEWERS_PATH}/${sessionId}`);
-  const data: ViewerInfo = { nickname: nickname.trim(), joinedAt: Date.now() };
+  const data: ViewerInfo = { nickname, joinedAt: Date.now() };
   await set(viewerRef, data);
-  // 연결 끊기면 자동 삭제
   onDisconnect(viewerRef).remove();
   return "ok";
 }
@@ -68,19 +59,13 @@ export async function leaveViewer(sessionId: string): Promise<void> {
 
 const EVENT_PATH = "woojung-event";
 const WEBRTC_PATH = "woojung-webrtc";
-/** 세션별 탭 수 (온도와 별도 경로 — 동시 쓰기 충돌 방지) */
-const TAPS_PATH = "woojung-taps";
 
 // ─── 상태 읽기 / 쓰기 ─────────────────────────────────────────────────────────
 
 export function watchEventState(callback: (state: EventState) => void): () => void {
   const stateRef = ref(db, EVENT_PATH);
-  const defaultState: EventState = { status: "WAITING", temperature: 0 };
   const unsub = onValue(stateRef, (snap) => {
-    const state: EventState = snap.exists()
-      ? (snap.val() as EventState)
-      : defaultState;
-    callback(state);
+    if (snap.exists()) callback(snap.val() as EventState);
   });
   return unsub;
 }
@@ -94,27 +79,7 @@ export async function initEventState(): Promise<void> {
   await set(ref(db, EVENT_PATH), { status: "WAITING", temperature: 0 } satisfies EventState);
   await remove(ref(db, WEBRTC_PATH));
   await remove(ref(db, VIEWERS_PATH));
-  await remove(ref(db, TAPS_PATH));
-}
-
-/** 탭 1회 기록 (게임 중 순위 집계) */
-export async function incrementTapScore(sessionId: string): Promise<void> {
-  await runTransaction(ref(db, TAPS_PATH), (current) => {
-    const scores = (current as Record<string, number> | null) ?? {};
-    return {
-      ...scores,
-      [sessionId]: (scores[sessionId] ?? 0) + 1,
-    };
-  });
-}
-
-export function watchTapScores(
-  callback: (scores: Record<string, number>) => void
-): () => void {
-  const unsub = onValue(ref(db, TAPS_PATH), (snap) => {
-    callback(snap.exists() ? (snap.val() as Record<string, number>) : {});
-  });
-  return unsub;
+  await remove(ref(db, CONTRIBUTIONS_PATH));
 }
 
 export async function setStatus(status: EventStatus): Promise<void> {

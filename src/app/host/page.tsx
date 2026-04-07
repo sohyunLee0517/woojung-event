@@ -17,7 +17,7 @@ const STATUS_LABELS: Record<EventStatus, string> = {
   WAITING: "⏳ 대기 중",
   PLAYING: "🎮 진행 중",
   CELEBRATION: "🎉 폭죽!",
-  RANKING: "🏆 순위",
+  RANKING: "🏆 랭킹",
   BLACKOUT: "⬛ 암전",
   REVEAL: "🎬 등장",
   ABORTED: "🚨 중단됨",
@@ -32,15 +32,6 @@ const STATUS_COLORS: Record<EventStatus, string> = {
   REVEAL: "#ef4444",
   ABORTED: "#ef4444",
 };
-
-/** 이탈 시 중단 처리할 진행 단계 (누군가 새로고침·이탈) */
-const ABORT_ON_LEAVE: readonly EventStatus[] = [
-  "PLAYING",
-  "CELEBRATION",
-  "RANKING",
-  "BLACKOUT",
-  "REVEAL",
-];
 
 export default function HostPage() {
   const [status, setStatusLocal] = useState<EventStatus>("WAITING");
@@ -58,26 +49,19 @@ export default function HostPage() {
   const decayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seqRunningRef = useRef(false); // stale closure 방지용 ref
 
-  /** 폭죽 → 순위 → 암전 3초 → 두둥+영상 */
-  const CELEBRATION_MS = 3000;
-  const RANKING_MS = 4000;
-  const BLACKOUT_MS = 3000;
-
+  // 4단계 자동 시퀀스: 폭죽 → 랭킹 → 암전 → 등장 (ref로 guard)
   const startSequence = useCallback(() => {
     if (seqRunningRef.current) return;
     seqRunningRef.current = true;
 
     setStatus("CELEBRATION");
 
-    const t1 = setTimeout(() => setStatus("RANKING"), CELEBRATION_MS);
-    const t2 = setTimeout(
-      () => setStatus("BLACKOUT"),
-      CELEBRATION_MS + RANKING_MS
-    );
+    const t1 = setTimeout(() => setStatus("RANKING"), 3000);
+    const t2 = setTimeout(() => setStatus("BLACKOUT"), 6000);
     const t3 = setTimeout(() => {
       setStatus("REVEAL");
       seqRunningRef.current = false;
-    }, CELEBRATION_MS + RANKING_MS + BLACKOUT_MS);
+    }, 7000);
 
     seqTimersRef.current = [t1, t2, t3];
   }, []);
@@ -99,8 +83,8 @@ export default function HostPage() {
         setShowStartAlert(false);
       }
 
-      // 진행 중 이탈·새로고침(onDisconnect) 감지 → ABORTED
-      if (ABORT_ON_LEAVE.includes(statusRef.current)) {
+      // 게임 중 이탈 감지 → ABORTED (세션 삭제 없이 상태만 변경)
+      if (statusRef.current === "PLAYING") {
         const left = Object.keys(prev).filter((id) => !v[id]);
         if (left.length > 0) {
           const names = left.map((id) => prev[id].nickname);
@@ -127,8 +111,7 @@ export default function HostPage() {
     return () => unsub();
   }, [startSequence]);
 
-  // 자동 온도 하락: PLAYING 중 1초마다 (탭 목표 300×인원 근처가 되도록 약하게)
-  const TEMP_DECAY_PER_SEC = 0.05;
+  // 자동 온도 하락: PLAYING 중 1초마다 -0.2°
   useEffect(() => {
     if (status !== "PLAYING") {
       if (decayRef.current) { clearInterval(decayRef.current); decayRef.current = null; }
@@ -136,7 +119,7 @@ export default function HostPage() {
     }
     decayRef.current = setInterval(() => {
       if (statusRef.current !== "PLAYING") return;
-      const next = Math.max(0, tempRef.current - TEMP_DECAY_PER_SEC);
+      const next = Math.max(0, tempRef.current - 0.2);
       setTemperature(next);
     }, 1000);
     return () => { if (decayRef.current) { clearInterval(decayRef.current); decayRef.current = null; } };
@@ -158,10 +141,12 @@ export default function HostPage() {
     setCameraOn(false);
   }, []);
 
-  // ABORTED 시 카메라 강제 종료 (공개 단계 포함)
+  // ABORTED 시 카메라 자동 종료 (stopCamera 정의 이후에 위치)
   useEffect(() => {
-    if (status === "ABORTED") stopCamera();
-  }, [status, stopCamera]);
+    if (status === "ABORTED" && cameraOn) {
+      stopCamera();
+    }
+  }, [status, cameraOn, stopCamera]);
 
   const handleTempChange = async (delta: number) => {
     const next = Math.round((temperature + delta) * 10) / 10;
@@ -183,7 +168,6 @@ export default function HostPage() {
     seqTimersRef.current.forEach(clearTimeout);
     seqRunningRef.current = false;
     setEarlyLeaveNames([]);
-    stopCamera();
     await resetEvent();
   };
 
@@ -200,59 +184,35 @@ export default function HostPage() {
           <h1 className="text-white font-black text-lg">🎬 호스트 컨트롤</h1>
           <p className="text-white/50 text-xs">우정의 온도 — 주최자 전용</p>
         </div>
-        <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: bgColor, color: "#fff" }}>
-          {STATUS_LABELS[status]}
-        </span>
+        {status === "ABORTED" ? (
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 rounded-full text-sm font-bold text-white active:scale-95 transition-transform"
+            style={{ background: "#ef4444", boxShadow: "0 0 16px #ef444466" }}
+          >
+            🔄 다시 하기
+          </button>
+        ) : (
+          <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: bgColor, color: "#fff" }}>
+            {STATUS_LABELS[status]}
+          </span>
+        )}
       </div>
 
-      {/* 이탈 안내 (ABORTED 전용 화면이 아닐 때만) */}
-      {earlyLeaveNames.length > 0 && status !== "ABORTED" && (
-        <div className="mx-5 mt-4 rounded-2xl p-4 flex items-start justify-between gap-3"
+      {/* 이탈 안내 배너 */}
+      {earlyLeaveNames.length > 0 && (
+        <div className="mx-5 mt-4 rounded-2xl p-4"
           style={{ background: "#ef444422", border: "2px solid #ef4444" }}>
-          <div>
-            <p className="text-white font-black text-base">⚠️ 게임이 중단됐습니다</p>
-            <p className="text-white/60 text-sm mt-0.5">
-              {earlyLeaveNames.join(", ")}님이 게임 도중 이탈했습니다.
-            </p>
-          </div>
-          <button onClick={() => setEarlyLeaveNames([])}
-            className="text-white/40 text-lg shrink-0">✕</button>
-        </div>
-      )}
-
-      {/* ABORTED: 다른 조작 불가, 리셋으로만 복구 */}
-      {status === "ABORTED" && (
-        <div
-          className="mx-5 mt-4 rounded-2xl p-6 flex flex-col items-center gap-4 text-center"
-          style={{ background: "#ef444422", border: "2px solid #ef4444" }}
-        >
-          <div>
-            <p className="text-white font-black text-lg">게임이 중단됐습니다</p>
-            {earlyLeaveNames.length > 0 && (
-              <p className="text-white/60 text-sm mt-2">
-                {earlyLeaveNames.join(", ")}님 연결이 끊겼어요 (새로고침·이탈)
-              </p>
-            )}
-            <p className="text-white/40 text-xs mt-3">
-              아래 버튼으로 초기화하면 참가자 화면도 함께 돌아갑니다. 카메라는 꺼진 상태입니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="w-full max-w-sm py-4 rounded-xl font-black text-white text-lg active:scale-[0.98] transition-transform"
-            style={{
-              background: "linear-gradient(135deg, #f97316, #dc2626)",
-              boxShadow: "0 0 24px rgba(239,68,68,0.45)",
-            }}
-          >
-            게임 리셋 · 처음부터
-          </button>
+          <p className="text-white font-black text-base">⚠️ 게임이 중단됐습니다</p>
+          <p className="text-white/60 text-sm mt-0.5">
+            {earlyLeaveNames.join(", ")}님이 게임 도중 이탈했습니다.
+          </p>
+          <p className="text-white/40 text-xs mt-2">상단 🔄 다시 하기 버튼을 눌러 새 게임을 시작하세요.</p>
         </div>
       )}
 
       {/* 3명 모임 알럿 */}
-      {showStartAlert && status !== "ABORTED" && (
+      {showStartAlert && (
         <div className="mx-5 mt-4 rounded-2xl p-4 flex flex-col gap-3"
           style={{ background: "#22c55e22", border: "2px solid #22c55e" }}>
           <div>
@@ -280,15 +240,10 @@ export default function HostPage() {
         </div>
       )}
 
-      <div
-        className={`flex-1 flex flex-col gap-5 p-5 ${status === "ABORTED" ? "pointer-events-none opacity-30 select-none" : ""}`}
-        aria-hidden={status === "ABORTED"}
-      >
+      <div className="flex-1 flex flex-col gap-5 p-5">
 
         {/* 친구 화면 미리보기 (PLAYING 이상일 때) */}
-        {(status === "PLAYING" ||
-          status === "CELEBRATION" ||
-          status === "RANKING") && (
+        {(status === "PLAYING" || status === "CELEBRATION") && (
           <div className="bg-white/5 rounded-2xl p-5">
             <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-4">현재 친구들 화면</p>
             <TemperatureGauge temperature={temperature} />
@@ -306,13 +261,15 @@ export default function HostPage() {
           <input
             type="range" min={0} max={100} step={0.1} value={temperature}
             onChange={handleSlider}
-            className="w-full h-3 rounded-full appearance-none cursor-pointer accent-orange-500"
+            disabled={status === "ABORTED"}
+            className="w-full h-3 rounded-full appearance-none cursor-pointer accent-orange-500 disabled:opacity-30 disabled:cursor-not-allowed"
             style={{ background: `linear-gradient(90deg, #f97316 ${temperature}%, #ffffff22 ${temperature}%)` }}
           />
           <div className="grid grid-cols-5 gap-2">
             {[-10, -1, -0.1, +1, +10].map((d) => (
               <button key={d} onClick={() => handleTempChange(d)}
-                className="py-3 rounded-xl font-bold text-sm text-white transition-transform active:scale-95"
+                disabled={status === "ABORTED"}
+                className="py-3 rounded-xl font-bold text-sm text-white transition-transform active:scale-95 disabled:opacity-30"
                 style={{ background: d > 0 ? "#f9731633" : "#3b82f633", border: `1px solid ${d > 0 ? "#f97316" : "#3b82f6"}` }}>
                 {d > 0 ? `+${d}` : `${d}`}
               </button>
@@ -326,7 +283,7 @@ export default function HostPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setStatus("PLAYING")}
-              disabled={status !== "WAITING" || Object.keys(viewers).length < 3}
+              disabled={status !== "WAITING" || Object.keys(viewers).length < 3 || status === "ABORTED"}
               className="py-4 rounded-xl font-bold text-white disabled:opacity-40 active:scale-95 transition-transform flex flex-col items-center gap-0.5"
               style={{ background: "#22c55e33", border: "1px solid #22c55e" }}
             >
@@ -337,14 +294,15 @@ export default function HostPage() {
                 </span>
               )}
             </button>
-            <button onClick={handleManualReveal} disabled={status === "WAITING"}
+            <button onClick={handleManualReveal} disabled={status === "WAITING" || status === "ABORTED"}
               className="py-4 rounded-xl font-bold text-white disabled:opacity-40 active:scale-95 transition-transform"
               style={{ background: "#ef444433", border: "1px solid #ef4444" }}>
               🎬 즉시 공개
             </button>
           </div>
           <button onClick={handleReset}
-            className="py-3 rounded-xl font-bold text-white/60 text-sm active:scale-95 transition-transform"
+            disabled={status === "ABORTED"}
+            className="py-3 rounded-xl font-bold text-white/60 text-sm active:scale-95 transition-transform disabled:opacity-30"
             style={{ background: "#ffffff11", border: "1px solid #ffffff22" }}>
             ↩ 초기화 (처음부터)
           </button>
@@ -355,7 +313,8 @@ export default function HostPage() {
           <div className="flex items-center justify-between">
             <p className="text-white/60 text-sm font-semibold uppercase tracking-wide">카메라</p>
             <button onClick={cameraOn ? stopCamera : startCamera}
-              className="px-4 py-2 rounded-full text-sm font-bold text-white active:scale-95 transition-transform"
+              disabled={status === "ABORTED"}
+              className="px-4 py-2 rounded-full text-sm font-bold text-white active:scale-95 transition-transform disabled:opacity-30"
               style={{ background: cameraOn ? "#ef444433" : "#22c55e33", border: `1px solid ${cameraOn ? "#ef4444" : "#22c55e"}` }}>
               {cameraOn ? "⏹ 끄기" : "▶ 켜기"}
             </button>
@@ -370,7 +329,7 @@ export default function HostPage() {
         <div className="bg-white/5 rounded-2xl p-4">
           <p className="text-white/40 text-xs leading-relaxed">
             <span className="text-orange-400 font-bold">자동 시퀀스:</span>{" "}
-            100도 도달 → 폭죽 3초 → 암전 1초 → 주최자 등장
+            100도 도달 → 폭죽 3초 → 랭킹 발표 3초 → 암전 1초 → 주최자 등장
           </p>
         </div>
       </div>

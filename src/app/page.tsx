@@ -8,30 +8,16 @@ import {
   watchViewers,
   tryJoinViewer,
   leaveViewer,
-  incrementTapScore,
-  watchTapScores,
+  watchContributions,
+  incrementContribution,
   type ViewerInfo,
+  type ContributionInfo,
 } from "@/lib/event-store";
-import {
-  getAudioContext,
-  resumeAudio,
-  playFanfare,
-  playTudum,
-} from "@/lib/sounds";
+import { getAudioContext, resumeAudio, playFanfare, playTudum } from "@/lib/sounds";
 import { ViewerReceiver } from "@/lib/webrtc";
 import TemperatureGauge from "@/components/TemperatureGauge";
-import GameAlert from "@/components/GameAlert";
 
-type Phase =
-  | "GATE"
-  | "LOBBY"
-  | "WAITING"
-  | "PLAYING"
-  | "CELEBRATION"
-  | "RANKING"
-  | "BLACKOUT"
-  | "REVEAL"
-  | "ABORTED";
+type Phase = "GATE" | "LOBBY" | "WAITING" | "PLAYING" | "CELEBRATION" | "RANKING" | "BLACKOUT" | "REVEAL" | "ABORTED";
 
 async function fireConfetti() {
   const confetti = (await import("canvas-confetti")).default;
@@ -54,21 +40,11 @@ export default function ViewerPage() {
   const [joinError, setJoinError] = useState("");
   const [joining, setJoining] = useState(false);
   const [viewers, setViewers] = useState<Record<string, ViewerInfo>>({});
-  const [eventState, setEventState] = useState<EventState>({
-    status: "WAITING",
-    temperature: 0,
-  });
+  const [eventState, setEventState] = useState<EventState>({ status: "WAITING", temperature: 0 });
   const [hostStream, setHostStream] = useState<MediaStream | null>(null);
   const [tapFlash, setTapFlash] = useState(false);
   const [showHint, setShowHint] = useState(false);
-  /** Firebase 이벤트 첫 수신 전 — 별명 화면 깜빡임 방지 */
-  const [eventHydrated, setEventHydrated] = useState(false);
-  /** 대기 중 인원 이탈 시 커스텀 알럿 */
-  const [waitingBreakAlert, setWaitingBreakAlert] = useState<{
-    title: string;
-    lines: string[];
-  } | null>(null);
-  const [tapScores, setTapScores] = useState<Record<string, number>>({});
+  const [contributions, setContributions] = useState<Record<string, ContributionInfo>>({});
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const receiverRef = useRef<ViewerReceiver | null>(null);
@@ -77,20 +53,12 @@ export default function ViewerPage() {
   const tapCooldown = useRef(false);
   const sessionId = useRef(crypto.randomUUID());
   const myNickname = useRef("");
-  const eventStatusRef = useRef<EventState["status"]>("WAITING");
+
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { tempRef.current = eventState.temperature ?? 0; }, [eventState.temperature]);
 
   useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-  useEffect(() => {
-    tempRef.current = eventState.temperature ?? 0;
-  }, [eventState.temperature]);
-
-  useEffect(() => {
-    if (videoRef.current && hostStream) {
-      videoRef.current.srcObject = hostStream;
-      videoRef.current.volume = 1;
-    }
+    if (videoRef.current && hostStream) videoRef.current.srcObject = hostStream;
   }, [hostStream]);
 
   // 참가자 목록 구독 + 3명 차면 LOBBY → WAITING + 리셋/이탈 감지
@@ -107,39 +75,18 @@ export default function ViewerPage() {
         return;
       }
 
-      // 호스트 게임 시작 대기(WAITING) 중 한 명이라도 이탈 → 알럿 후 별명 화면
-      if (
-        phaseRef.current === "WAITING" &&
-        eventStatusRef.current === "WAITING"
-      ) {
-        const prevCount = Object.keys(prev).length;
-        const curCount = Object.keys(v).length;
-        if (prevCount >= 3 && curCount < 3) {
-          setWaitingBreakAlert(
-            (prev) =>
-              prev ?? {
-                title: "인원이 달라졌어요",
-                lines: [
-                  "친구가 나갔어요.",
-                  "다시 3명이 모이면 시작할 수 있어요.",
-                ],
-              },
-          );
-          return;
-        }
+      // WAITING 중 누군가 이탈 → 내 세션 정리 후 GATE로 복귀
+      if (phaseRef.current === "WAITING" && Object.keys(v).length < 3) {
+        leaveViewer(sessionId.current);
+        myNickname.current = "";
+        setPhase("GATE");
+        return;
       }
 
-      // 내 세션이 사라졌다 = 호스트 리셋(뷰어 목록 초기화) 등 → GATE로 복귀
-      // ABORTED 중에는 Firebase가 WAITING으로 바뀔 때까지 화면 유지 (handleStatusChange에서 GATE 처리)
-      const iJoined =
-        phaseRef.current !== "GATE" &&
-        phaseRef.current !== "ABORTED" &&
-        myNickname.current !== "";
-      if (
-        iJoined &&
-        !v[sessionId.current] &&
-        eventStatusRef.current === "WAITING"
-      ) {
+      // 내 세션이 사라졌다 = 호스트가 초기화 → GATE로 복귀
+      // (ABORTED 포함: 호스트 "다시 하기" 시 세션 삭제로도 감지)
+      const iJoined = phaseRef.current !== "GATE" && myNickname.current !== "";
+      if (iJoined && !v[sessionId.current]) {
         myNickname.current = "";
         setPhase("GATE");
         return;
@@ -150,119 +97,75 @@ export default function ViewerPage() {
 
   const handleStatusChange = useCallback((newStatus: string) => {
     const cur = phaseRef.current;
-    // ABORTED: GATE·LOBBY 포함 항상 반영 (새로고침·신규 입장자도 동일 화면)
-    if (newStatus === "ABORTED" && cur !== "ABORTED") {
-      setPhase("ABORTED");
-      return;
-    }
-    // 호스트 리셋·초기화 → WAITING + 뷰어 목록 초기화에 맞춰 입장 화면으로
-    if (
-      newStatus === "WAITING" &&
-      cur !== "WAITING" &&
-      cur !== "GATE" &&
-      cur !== "LOBBY"
-    ) {
-      myNickname.current = "";
-      setPhase("GATE");
-      return;
-    }
-    // GATE·LOBBY 는 그 외 Firebase 상태 무시 — 3명이 모여 WAITING이 된 뒤에만 반응
+    // GATE·LOBBY 는 Firebase 상태 무시 — 3명이 모여 WAITING이 된 뒤에만 반응
     if (cur === "GATE" || cur === "LOBBY") return;
 
     // phaseRef 기반 중복 방지 (이미 해당 phase면 무시)
-    if (newStatus === "WAITING" && cur !== "WAITING") setPhase("WAITING");
-    if (newStatus === "PLAYING" && cur !== "PLAYING") {
-      setPhase("PLAYING");
-      setShowHint(true);
+    // ABORTED 중 WAITING 수신 = 호스트가 리셋 → GATE로 복귀
+    if (newStatus === "WAITING" && cur !== "WAITING") {
+      if (cur === "ABORTED") { myNickname.current = ""; setPhase("GATE"); return; }
+      setPhase("WAITING");
     }
-    if (newStatus === "CELEBRATION" && cur !== "CELEBRATION") {
-      setPhase("CELEBRATION");
-      fireConfetti();
-      playFanfare();
-    }
-    if (newStatus === "RANKING" && cur !== "RANKING") setPhase("RANKING");
-    if (newStatus === "BLACKOUT" && cur !== "BLACKOUT") setPhase("BLACKOUT");
-    if (newStatus === "REVEAL" && cur !== "REVEAL") {
-      setPhase("REVEAL");
-      setTimeout(() => playTudum(), 100);
-    }
+    if (newStatus === "PLAYING"     && cur !== "PLAYING")     { setPhase("PLAYING"); setShowHint(true); }
+    if (newStatus === "CELEBRATION" && cur !== "CELEBRATION") { setPhase("CELEBRATION"); fireConfetti(); playFanfare(); }
+    if (newStatus === "RANKING"     && cur !== "RANKING")     setPhase("RANKING");
+    if (newStatus === "BLACKOUT"    && cur !== "BLACKOUT")    setPhase("BLACKOUT");
+    if (newStatus === "REVEAL"      && cur !== "REVEAL")      { setPhase("REVEAL"); setTimeout(() => playTudum(), 100); }
+    if (newStatus === "ABORTED"     && cur !== "ABORTED")     setPhase("ABORTED");
   }, []);
 
   useEffect(() => {
     const unsub = watchEventState((state) => {
-      setEventHydrated(true);
-      eventStatusRef.current = state.status;
+      const cur = phaseRef.current;
+      // GATE에서도 ABORTED 신호를 받으면 중단 화면 표시
+      // (이탈했다 다시 들어온 플레이어 포함, 모든 방문자에게 적용)
+      if (cur === "GATE") {
+        if (state.status === "ABORTED") setPhase("ABORTED");
+        return;
+      }
       setEventState(state);
       handleStatusChange(state.status);
     });
     return () => unsub();
-  }, [handleStatusChange]);
+  }, [phase, handleStatusChange]);
 
   useEffect(() => {
-    const unsub = watchTapScores(setTapScores);
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    if (phase !== "REVEAL") {
-      setHostStream(null);
-      receiverRef.current?.disconnect();
-      receiverRef.current = null;
-      return;
-    }
+    if (phase === "GATE") return;
     const receiver = new ViewerReceiver();
     receiverRef.current = receiver;
     receiver.connect((stream) => setHostStream(stream));
-    return () => {
-      receiver.disconnect();
-      receiverRef.current = null;
-    };
+    return () => { receiver.disconnect(); receiverRef.current = null; };
   }, [phase]);
 
-  const handleWaitingBreakConfirm = useCallback(() => {
-    setWaitingBreakAlert(null);
-    void leaveViewer(sessionId.current);
-    myNickname.current = "";
-    setNickname("");
-    setPhase("GATE");
-  }, []);
+  // 기여도 구독
+  useEffect(() => {
+    if (phase === "GATE") return;
+    const unsub = watchContributions(setContributions);
+    return () => unsub();
+  }, [phase]);
 
   // 페이지 떠날 때 참가자 제거
   useEffect(() => {
-    return () => {
-      leaveViewer(sessionId.current);
-    };
+    return () => { leaveViewer(sessionId.current); };
   }, []);
 
   const handleEnter = async () => {
     const name = nickname.trim();
-    if (!name) {
-      setJoinError("별명을 입력해주세요");
-      return;
-    }
-    const taken = Object.entries(viewers).some(
-      ([sid, v]) =>
-        sid !== sessionId.current &&
-        v.nickname.trim().toLowerCase() === name.toLowerCase(),
-    );
-    if (taken) {
-      setJoinError("이미 사용 중인 별명이에요");
-      return;
-    }
+    if (!name) { setJoinError("별명을 입력해주세요"); return; }
     setJoining(true);
     setJoinError("");
 
     await resumeAudio();
     getAudioContext();
 
-    const joinResult = await tryJoinViewer(sessionId.current, name);
-    if (joinResult === "full") {
+    const result = await tryJoinViewer(sessionId.current, name);
+    if (result === "full") {
       setJoinError("이미 3명이 입장했습니다 😢");
       setJoining(false);
       return;
     }
-    if (joinResult === "duplicate") {
-      setJoinError("이미 사용 중인 별명이에요");
+    if (result === "duplicate") {
+      setJoinError("이미 사용 중인 별명이에요 🙈");
       setJoining(false);
       return;
     }
@@ -274,19 +177,13 @@ export default function ViewerPage() {
   const handleTap = async () => {
     if (tapCooldown.current) return;
     tapCooldown.current = true;
-    setTimeout(() => {
-      tapCooldown.current = false;
-    }, 300);
+    setTimeout(() => { tapCooldown.current = false; }, 300);
     setShowHint(false); // 첫 탭에 즉시 숨김
     const count = Math.max(1, Object.keys(viewers).length);
-    // 3명×각 300탭(총 900탭) ≈ 100° 목표: 100 / (300 × 인원)
-    const TAP_GOAL_PER_PERSON = 300;
-    const gain = 100 / (TAP_GOAL_PER_PERSON * count);
+    const gain = 2 / count; // 1명: +2, 2명: +1, 3명: +0.67
     const next = Math.min(100, (tempRef.current ?? 0) + gain);
-    await Promise.all([
-      setTemperature(next),
-      incrementTapScore(sessionId.current),
-    ]);
+    await setTemperature(next);
+    await incrementContribution(sessionId.current, myNickname.current, gain);
     setTapFlash(true);
     setTimeout(() => setTapFlash(false), 150);
   };
@@ -295,33 +192,13 @@ export default function ViewerPage() {
   const viewerList = viewerEntries.map(([, info]) => info);
   const viewerCount = viewerEntries.length;
 
-  // Firebase 첫 동기화 전: 게임 배경만 (별명 입력 UI 깜빡임 방지)
-  if (!eventHydrated) {
-    return (
-      <div
-        className="w-full h-full bg-[#0a0a0a] flex items-center justify-center"
-        aria-busy="true"
-        aria-label="연결 중"
-      />
-    );
-  }
-
   // ─── GATE ─────────────────────────────────────────────────────────────────
   if (phase === "GATE") {
-    const nicknameTaken =
-      nickname.trim().length > 0 &&
-      viewerEntries.some(
-        ([sid, v]) =>
-          sid !== sessionId.current &&
-          v.nickname.trim().toLowerCase() === nickname.trim().toLowerCase(),
-      );
     return (
       <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-8 px-8">
         <div className="text-center">
           <p className="text-6xl mb-3">🌡️</p>
-          <h1 className="text-3xl font-black text-white tracking-tight">
-            우정의 온도
-          </h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">우정의 온도</h1>
           <p className="text-white/40 mt-2 text-sm">The Dramatic Reveal</p>
         </div>
 
@@ -340,9 +217,7 @@ export default function ViewerPage() {
               {i < viewerCount ? viewerList[i].nickname[0] : "?"}
             </div>
           ))}
-          <span className="text-white/40 text-sm ml-1">
-            {viewerCount}/3명 입장
-          </span>
+          <span className="text-white/40 text-sm ml-1">{viewerCount}/3명 입장</span>
         </div>
 
         {/* 별명 입력 */}
@@ -350,13 +225,8 @@ export default function ViewerPage() {
           <input
             type="text"
             value={nickname}
-            onChange={(e) => {
-              setNickname(e.target.value);
-              setJoinError("");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleEnter();
-            }}
+            onChange={(e) => { setNickname(e.target.value); setJoinError(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleEnter(); }}
             placeholder="별명을 입력하세요"
             maxLength={8}
             className="w-full px-5 py-4 rounded-2xl text-white text-lg text-center font-bold
@@ -364,17 +234,12 @@ export default function ViewerPage() {
             style={{ background: "#ffffff11", border: "2px solid #ffffff22" }}
             autoFocus
           />
-          {nicknameTaken && (
-            <p className="text-amber-400/90 text-sm text-center">
-              이미 입장한 별명이에요
-            </p>
-          )}
           {joinError && (
             <p className="text-red-400 text-sm text-center">{joinError}</p>
           )}
           <button
             onClick={handleEnter}
-            disabled={joining || viewerCount >= 3 || nicknameTaken}
+            disabled={joining || viewerCount >= 3}
             className="w-full py-4 rounded-2xl text-lg font-bold text-white
                        disabled:opacity-40 active:scale-95 transition-transform"
             style={{
@@ -382,11 +247,7 @@ export default function ViewerPage() {
               boxShadow: "0 0 30px rgba(249,115,22,0.4)",
             }}
           >
-            {joining
-              ? "입장 중..."
-              : viewerCount >= 3
-                ? "입장 마감"
-                : "입장하기 🔥"}
+            {joining ? "입장 중..." : viewerCount >= 3 ? "입장 마감" : "입장하기 🔥"}
           </button>
         </div>
         <p className="text-white/20 text-xs">소리를 켜고 입장하세요</p>
@@ -400,9 +261,7 @@ export default function ViewerPage() {
       <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-8 px-8">
         <div className="text-center">
           <p className="text-6xl mb-3">🌡️</p>
-          <h1 className="text-3xl font-black text-white tracking-tight">
-            우정의 온도
-          </h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">우정의 온도</h1>
           <p className="text-white/40 mt-2 text-sm">The Dramatic Reveal</p>
         </div>
 
@@ -412,34 +271,18 @@ export default function ViewerPage() {
             const v = viewerList[i];
             const isMe = v?.nickname === myNickname.current;
             return (
-              <div
-                key={i}
-                className="flex flex-col items-center gap-1.5 transition-all duration-300"
-              >
+              <div key={i} className="flex flex-col items-center gap-1.5 transition-all duration-300">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-black border-2 transition-all duration-300"
                   style={{
-                    background: v
-                      ? isMe
-                        ? "#f9731633"
-                        : "#ffffff15"
-                      : "#ffffff08",
-                    borderColor: v
-                      ? isMe
-                        ? "#f97316"
-                        : "#ffffff50"
-                      : "#ffffff15",
+                    background: v ? (isMe ? "#f9731633" : "#ffffff15") : "#ffffff08",
+                    borderColor: v ? (isMe ? "#f97316" : "#ffffff50") : "#ffffff15",
                     color: v ? (isMe ? "#f97316" : "#ffffffcc") : "#ffffff20",
                   }}
                 >
                   {v ? v.nickname[0].toUpperCase() : "?"}
                 </div>
-                <span
-                  className="text-xs font-bold"
-                  style={{
-                    color: v ? (isMe ? "#f97316" : "#ffffff80") : "#ffffff20",
-                  }}
-                >
+                <span className="text-xs font-bold" style={{ color: v ? (isMe ? "#f97316" : "#ffffff80") : "#ffffff20" }}>
                   {v ? (isMe ? `${v.nickname} (나)` : v.nickname) : "???"}
                 </span>
               </div>
@@ -471,97 +314,82 @@ export default function ViewerPage() {
               : "곧 시작합니다! 🔥"}
           </button>
         </div>
-        <p className="text-white/20 text-xs">
-          3명이 모이면 자동으로 시작됩니다
-        </p>
-      </div>
-    );
-  }
-
-  // ─── CELEBRATION: 폭죽만 (순위는 다음 단계) ───────────────────────────────
-  if (phase === "CELEBRATION") {
-    return (
-      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center px-6">
-        <p className="text-7xl mb-6">🎉</p>
-        <p className="text-white font-black text-3xl text-center tracking-tight">
-          MAX 우정!
-        </p>
-        <p className="text-white/45 text-sm mt-3">100° 달성</p>
-      </div>
-    );
-  }
-
-  // ─── RANKING: 탭 횟수 순위 ───────────────────────────────────────────────
-  if (phase === "RANKING") {
-    const medals = ["🥇", "🥈", "🥉"];
-    const ranked = [...viewerEntries]
-      .map(([sid, v]) => ({
-        sid,
-        nickname: v.nickname,
-        taps: tapScores[sid] ?? 0,
-      }))
-      .sort((a, b) =>
-        b.taps !== a.taps
-          ? b.taps - a.taps
-          : a.nickname.localeCompare(b.nickname, "ko"),
-      );
-    return (
-      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center px-6 py-10 gap-8">
-        <div className="text-center">
-          <p className="text-white/50 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
-            우정 온도 기여
-          </p>
-          <p className="text-white font-black text-2xl">탭 순위</p>
-        </div>
-        <ul className="flex flex-col gap-3 w-full max-w-sm">
-          {ranked.map((row, i) => (
-            <li
-              key={row.sid}
-              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl"
-              style={{
-                background:
-                  row.sid === sessionId.current ? "#f9731618" : "#ffffff08",
-                border: `1.5px solid ${
-                  row.sid === sessionId.current ? "#f9731655" : "#ffffff18"
-                }`,
-              }}
-            >
-              <span className="text-2xl w-10 text-center shrink-0">
-                {medals[i] ?? `${i + 1}위`}
-              </span>
-              <span className="text-white font-bold flex-1 min-w-0 truncate">
-                {row.nickname}
-                {row.sid === sessionId.current && (
-                  <span className="text-orange-400 font-semibold text-sm ml-1">
-                    (나)
-                  </span>
-                )}
-              </span>
-              <span
-                className="text-orange-400 font-black tabular-nums text-lg shrink-0"
-                style={{ textShadow: "0 0 20px rgba(249,115,22,0.35)" }}
-              >
-                {row.taps}탭
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="text-white/20 text-xs">3명이 모이면 자동으로 시작됩니다</p>
       </div>
     );
   }
 
   if (phase === "BLACKOUT") return <div className="w-full h-full bg-black" />;
 
+  // ─── RANKING ──────────────────────────────────────────────────────────────
+  if (phase === "RANKING") {
+    const rankingData = Object.entries(viewers)
+      .map(([sid, v]) => ({
+        sid,
+        nickname: v.nickname,
+        total: Math.round((contributions[sid]?.total ?? 0) * 10) / 10,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const medals = ["🥇", "🥈", "🥉"];
+    const borderColors = ["#f59e0b", "#9ca3af", "#b45309"];
+    const glowColors = ["#f59e0b44", "#9ca3af22", "#b4530922"];
+    const textColors = ["#fbbf24", "#e5e7eb", "#d97706"];
+    const rankLabels = ["1위", "2위", "3위"];
+
+    return (
+      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-5 px-6">
+        <div className="text-center">
+          <p className="text-5xl mb-2">🏆</p>
+          <h2 className="text-2xl font-black text-white">우정 온도 랭킹</h2>
+          <p className="text-white/30 text-sm mt-1">누가 가장 열심히 눌렀을까?</p>
+        </div>
+
+        <div className="w-full flex flex-col gap-3">
+          {rankingData.map((r, i) => (
+            <div
+              key={r.sid}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl"
+              style={{
+                background: glowColors[i],
+                border: `2px solid ${borderColors[i]}`,
+                animation: "rank-in 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                animationDelay: `${i * 0.2}s`,
+              }}
+            >
+              <span style={{ fontSize: 40, lineHeight: 1 }}>{medals[i]}</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-white text-xl truncate">{r.nickname}</p>
+                <p className="text-white/30 text-xs">{rankLabels[i]}</p>
+              </div>
+              <span
+                className="font-black text-2xl tabular-nums shrink-0"
+                style={{ color: textColors[i] }}
+              >
+                +{r.total.toFixed(1)}°
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <style>{`
+          @keyframes rank-in {
+            from { opacity: 0; transform: translateY(24px) scale(0.96); }
+            to   { opacity: 1; transform: translateY(0)    scale(1);    }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   // ─── ABORTED ──────────────────────────────────────────────────────────────
   if (phase === "ABORTED") {
     return (
-      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-8 px-8">
+      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-6 px-8">
         <div className="text-center">
           <p className="text-6xl mb-4">😢</p>
           <p className="text-white font-black text-2xl">게임이 중단됐습니다</p>
-          <p className="text-white/40 text-sm mt-2">
-            누군가 게임 도중 이탈하거나 새로고침했어요
-          </p>
+          <p className="text-white/40 text-sm mt-2">호스트가 게임을 다시 시작하면<br />새 게임이 시작됩니다</p>
         </div>
       </div>
     );
@@ -571,14 +399,8 @@ export default function ViewerPage() {
     return (
       <div className="w-full h-full bg-black flex items-center justify-center">
         {hostStream ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={false}
-            className="w-full h-full object-cover"
-            style={{ transition: "none" }}
-          />
+          <video ref={videoRef} autoPlay playsInline muted
+            className="w-full h-full object-cover" style={{ transition: "none" }} />
         ) : (
           <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 rounded-full border-4 border-red-500 border-t-transparent animate-spin" />
@@ -591,38 +413,24 @@ export default function ViewerPage() {
 
   if (phase === "WAITING") {
     return (
-      <>
-        <GameAlert
-          open={waitingBreakAlert !== null}
-          title={waitingBreakAlert?.title ?? ""}
-          lines={waitingBreakAlert?.lines ?? []}
-          confirmLabel="알겠어요"
-          onConfirm={handleWaitingBreakConfirm}
-        />
-        <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-6 px-6">
-          <>
-            <div className="text-center animate-pulse">
-              <p className="text-5xl mb-4">🌡️</p>
-              <p className="text-white/60 text-lg">잠시 후 시작됩니다...</p>
-            </div>
-            <div className="flex gap-2">
-              {viewerEntries.map(([sid, v]) => (
-                <div
-                  key={sid}
-                  className="px-3 py-1 rounded-full text-sm font-bold"
-                  style={{
-                    background: "#f9731622",
-                    border: "1px solid #f97316",
-                    color: "#f97316",
-                  }}
-                >
-                  {v.nickname}
-                </div>
-              ))}
-            </div>
-          </>
-        </div>
-      </>
+      <div className="w-full h-full bg-[#0a0a0a] flex flex-col items-center justify-center gap-6 px-6">
+        <>
+          <div className="text-center animate-pulse">
+            <p className="text-5xl mb-4">🌡️</p>
+            <p className="text-white/60 text-lg">잠시 후 시작됩니다...</p>
+          </div>
+          <div className="flex gap-2">
+            {viewerEntries.map(([sid, v]) => (
+              <div key={sid}
+                className="px-3 py-1 rounded-full text-sm font-bold"
+                style={{ background: "#f9731622", border: "1px solid #f97316", color: "#f97316" }}
+              >
+                {v.nickname}
+              </div>
+            ))}
+          </div>
+        </>
+      </div>
     );
   }
 
@@ -635,30 +443,47 @@ export default function ViewerPage() {
       style={{ background: "#0a0a0a" }}
       onPointerDown={undefined}
     >
-      {/* 상단: 참가자 */}
-      <div className="flex justify-center gap-2 pt-6 px-4">
-        {viewerEntries.map(([sid, v]) => (
-          <span
-            key={sid}
-            className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={{
-              background:
-                v.nickname === myNickname.current ? "#f9731633" : "#ffffff11",
-              color:
-                v.nickname === myNickname.current ? "#f97316" : "#ffffff50",
-              border:
-                v.nickname === myNickname.current
-                  ? "1px solid #f97316"
-                  : "1px solid transparent",
-            }}
-          >
-            {v.nickname}
-          </span>
-        ))}
+      {/* 상단: 참가자 + 기여도 */}
+      <div className="flex justify-center gap-3 pt-5 px-4">
+        {viewerEntries.map(([sid, v]) => {
+          const contrib = contributions[sid];
+          const total = contrib?.total ?? 0;
+          const isMe = v.nickname === myNickname.current;
+          return (
+            <div key={sid} className="flex flex-col items-center gap-0.5">
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-bold"
+                style={{
+                  background: isMe ? "#f9731633" : "#ffffff11",
+                  color: isMe ? "#f97316" : "#ffffff50",
+                  border: isMe ? "1px solid #f97316" : "1px solid #ffffff20",
+                }}
+              >
+                {v.nickname}
+              </span>
+              <span className="text-[10px] font-bold tabular-nums" style={{ color: isMe ? "#fb923c" : "#ffffff30" }}>
+                +{total.toFixed(1)}°
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* 중앙: 게이지 */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 pointer-events-none">
+        {phase === "CELEBRATION" && (
+          <p
+            className="text-4xl font-black animate-bounce px-6 py-3 rounded-2xl"
+            style={{
+              color: "#fff",
+              background: "rgba(239,68,68,0.85)",
+              boxShadow: "0 0 40px #ef444488",
+              textShadow: "0 2px 8px rgba(0,0,0,0.6)",
+            }}
+          >
+            🎉 축하합니다! 🎉
+          </p>
+        )}
         <TemperatureGauge temperature={temp} />
         <p className="text-white/30 text-sm tracking-widest">
           {temp < 30 && "냉랭함 ❄️"}
@@ -686,9 +511,7 @@ export default function ViewerPage() {
           >
             <span className="text-4xl">👇</span>
             <p className="text-white font-black text-base">버튼을 눌러</p>
-            <p className="text-white font-black text-base">
-              온도를 높여보세요!
-            </p>
+            <p className="text-white font-black text-base">온도를 높여보세요!</p>
           </div>
           <style>{`
             @keyframes hint-float {
@@ -719,14 +542,7 @@ export default function ViewerPage() {
               border: "3px solid rgba(255,120,50,0.6)",
             }}
           >
-            <span
-              style={{
-                fontSize: 56,
-                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
-              }}
-            >
-              🔥
-            </span>
+            <span style={{ fontSize: 56, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>🔥</span>
           </button>
         </div>
       )}
