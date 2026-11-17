@@ -73,17 +73,17 @@ export function stealAmount(requested: number, attackerMoney: number, targetMone
   return Math.max(0, Math.min(requested, MONEY_MAX - attackerMoney, targetMoney - MONEY_MIN));
 }
 
-export const yen = (n: number) => `${n.toLocaleString("ko-KR")}엔`;
+export const yen = (n: number) => `¥${n.toLocaleString("ko-KR")}`;
 
 /** 퀴즈를 맞히면 이 중 하나를 무작위로 받는다. 사용 규칙(야외·50m)은 다음 단계에서 붙인다. */
 export type CardType = "steal_money" | "steal_time" | "shield" | "reflect" | "rps";
 
 export const CARD_META: Record<CardType, { emoji: string; name: string; desc: string }> = {
-  steal_money: { emoji: "🏴‍☠️", name: "2,000엔 내놔!", desc: "1명을 지목해서 2,000엔을 뺏어요. (8,000~13,000엔 범위를 넘으면 깎여요)" },
+  steal_money: { emoji: "🏴‍☠️", name: "¥2,000 내놔!", desc: "1명을 지목해서 ¥2,000을 뺏어요. (¥8,000~¥13,000 범위를 넘으면 깎여요)" },
   steal_time: { emoji: "⏱️", name: "2분 내놔!", desc: "1명을 지목해서 쇼핑 시간 2분을 뺏어요." },
   shield: { emoji: "🛡️", name: "방패", desc: "나에게 온 공격을 1번 막아요." },
   reflect: { emoji: "🪞", name: "반사", desc: "나에게 온 공격을 공격한 사람에게 그대로 돌려줘요." },
-  rps: { emoji: "🎲", name: "가위바위보 승부", desc: "1명을 지목해 가위바위보! 이기면 2,000엔을 뺏고, 지면 1,000엔을 줘요." },
+  rps: { emoji: "🎲", name: "가위바위보 승부", desc: "1명을 지목해 가위바위보! 이기면 ¥2,000을 뺏고, 지면 ¥1,000을 줘요." },
 };
 
 export const CARD_TYPES = Object.keys(CARD_META) as CardType[];

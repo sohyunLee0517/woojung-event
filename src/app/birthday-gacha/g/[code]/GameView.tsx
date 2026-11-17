@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { GameState, GamePlayer } from "@/lib/birthday-gacha/games";
 import {
   CAPSULE_SET,
@@ -20,6 +20,9 @@ import {
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
+// 화면 가운데에 잠깐 떴다 사라지는 알림
+type Notice = { key: number; title: string; emoji?: string; sub?: string; color?: string };
+const NOTICE_MS = 2600;
 type Phase = "idle" | "spinning" | "reveal";
 
 // 남은 캡슐 색깔. 등급과 상관없는 장식용이라 내용이 새지 않는다.
@@ -147,7 +150,7 @@ function RulesSheet({ onClose }: { onClose: () => void }) {
               {[...new Set(items.map((i) => `${yen(i.amount)} / ${i.minutes}분`))].join(", ")}
             </p>
           ))}
-          <p style={{ opacity: 0.7 }}>금액이 클수록 쇼핑 시간이 짧아요. 3개를 뽑으면 합계는 항상 8,500~12,500엔이에요.</p>
+          <p style={{ opacity: 0.7 }}>금액이 클수록 쇼핑 시간이 짧아요. 3개를 뽑으면 합계는 항상 ¥8,500~¥12,500이에요.</p>
         </section>
         <section>
           <h3 style={ruleHeading}>🏴‍☠️ 강탈 (준비 중)</h3>
@@ -156,7 +159,7 @@ function RulesSheet({ onClose }: { onClose: () => void }) {
           </p>
           <p>· {yen(MONEY_MIN)} 이하인 사람한테는 뺏을 수 없어요.</p>
           <p>· {yen(MONEY_MAX)} 이상이면 뺏을 수 없어요.</p>
-          <p>· 넘치는 만큼은 깎여요. 예) 12,000엔인 사람이 2,000엔을 뺏으면 1,000엔만 가져와요.</p>
+          <p>· 넘치는 만큼은 깎여요. 예) ¥12,000인 사람이 ¥2,000을 뺏으면 ¥1,000만 가져와요.</p>
         </section>
         <section>
           <h3 style={ruleHeading}>🃏 특수카드 (사용은 준비 중)</h3>
@@ -472,7 +475,12 @@ export default function GameView({ code }: { code: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<DrawnResult | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const notify = useCallback((title: string, extra: Omit<Notice, "key" | "title"> = {}) => {
+    setNotice({ key: Date.now(), title, ...extra });
+  }, []);
+  // 이미 본 뽑기 기록. 새로 생긴 남의 뽑기만 알림으로 띄운다.
+  const seenSlotsRef = useRef<Set<number> | null>(null);
   const [sheet, setSheet] = useState<"rules" | "players" | "quiz" | null>(null);
   const [quizData, setQuizData] = useState<PublicQuiz | null>(null);
   const [quizResult, setQuizResult] = useState<AnswerResult | null>(null);
@@ -487,13 +495,28 @@ export default function GameView({ code }: { code: string }) {
       if (res.status === 404) return setLoadError("없는 방이에요. 코드를 다시 확인해 주세요.");
       if (!res.ok) return;
       const data = (await res.json()) as GameState;
+      const seen = seenSlotsRef.current;
+      if (seen) {
+        const fresh = data.drawn.filter((d) => !seen.has(d.slot) && d.drawnBy !== data.me);
+        const latest = fresh[0];
+        if (latest) {
+          const who = data.players.find((p) => p.kakaoId === latest.drawnBy)?.nickname ?? "누군가";
+          const meta = GRADE_META[latest.grade];
+          notify(`${who}님이 ${meta.label}을 뽑았어요`, {
+            emoji: meta.emoji,
+            sub: `${yen(latest.amount)} · ${latest.minutes}분`,
+            color: meta.color,
+          });
+        }
+      }
+      seenSlotsRef.current = new Set(data.drawn.map((d) => d.slot));
       setState(data);
       setClockOffset(new Date(data.serverNow).getTime() - Date.now());
       setLoadError(null);
     } catch {
       // 다음 주기에 다시 시도
     }
-  }, [code]);
+  }, [code, notify]);
 
   useEffect(() => {
     load();
@@ -507,15 +530,15 @@ export default function GameView({ code }: { code: string }) {
   }, []);
 
   useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 2500);
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), NOTICE_MS);
     return () => clearTimeout(id);
-  }, [toast]);
+  }, [notice]);
 
   const join = async () => {
     const res = await fetch(`/api/birthday-gacha/games/${code}/join`, { method: "POST" });
     const data = (await res.json()) as { result: string };
-    if (data.result === "full") setToast("방이 꽉 찼어요 (3명).");
+    if (data.result === "full") notify("방이 꽉 찼어요 (3명).");
     await load();
   };
 
@@ -529,7 +552,7 @@ export default function GameView({ code }: { code: string }) {
     await new Promise((r) => setTimeout(r, Math.max(0, 1400 - (Date.now() - started))));
     if (!data?.ok || !data.capsule) {
       setPhase("idle");
-      setToast(DRAW_ERRORS[data?.reason ?? ""] ?? "뽑기에 실패했어요. 다시 눌러 주세요.");
+      notify(DRAW_ERRORS[data?.reason ?? ""] ?? "뽑기에 실패했어요. 다시 눌러 주세요.");
       return;
     }
     setResult(data.capsule);
@@ -539,6 +562,17 @@ export default function GameView({ code }: { code: string }) {
       confetti({ particleCount: data.capsule.grade === "SSR" ? 220 : 90, spread: 90, origin: { y: 0.45 }, zIndex: 70 });
     }
     load();
+  };
+
+  // 뽑기 기록을 누르면 그 캡슐 여는 연출을 다시 보여 준다
+  const replay = async (d: DrawnResult) => {
+    if (phase !== "idle") return;
+    setResult({ grade: d.grade, amount: d.amount, minutes: d.minutes });
+    setPhase("reveal");
+    if (d.grade === "SSR" || d.grade === "SR") {
+      const confetti = (await import("canvas-confetti")).default;
+      confetti({ particleCount: d.grade === "SSR" ? 220 : 90, spread: 90, origin: { y: 0.45 }, zIndex: 70 });
+    }
   };
 
   const openQuiz = async () => {
@@ -553,7 +587,7 @@ export default function GameView({ code }: { code: string }) {
     const data = res ? ((await res.json()) as { ok: boolean; quiz?: PublicQuiz; reason?: string }) : null;
     if (!data?.ok || !data.quiz) {
       setSheet(null);
-      setToast(data?.reason === "already" ? "이번 구간은 이미 참여했어요." : "퀴즈를 불러오지 못했어요.");
+      notify(data?.reason === "already" ? "이번 구간은 이미 참여했어요." : "퀴즈를 불러오지 못했어요.");
       load();
       return;
     }
@@ -572,7 +606,7 @@ export default function GameView({ code }: { code: string }) {
     setQuizSubmitting(false);
     if (!data?.ok) {
       setSheet(null);
-      setToast(data?.reason === "no_question" ? "구간이 바뀌었어요. 새 퀴즈를 열어 주세요." : "이미 참여했어요.");
+      notify(data?.reason === "no_question" ? "구간이 바뀌었어요. 새 퀴즈를 열어 주세요." : "이미 참여했어요.");
     } else {
       setQuizResult({ correct: !!data.correct, answer: data.answer ?? -1, card: data.card ?? null });
       if (data.correct) {
@@ -592,7 +626,7 @@ export default function GameView({ code }: { code: string }) {
         return;
       }
       await navigator.clipboard.writeText(`${text}\n${url}`);
-      setToast("초대 링크를 복사했어요.");
+      notify("초대 링크를 복사했어요.");
     } catch {
       // 공유 창을 닫은 경우
     }
@@ -612,6 +646,7 @@ export default function GameView({ code }: { code: string }) {
         @keyframes bg-open-bottom { 0%{transform:translateY(0)} 60%{transform:translateY(6px)} 100%{transform:translateY(70px);opacity:0} }
         @keyframes bg-pop { from{transform:scale(.3);opacity:0} to{transform:scale(1);opacity:1} }
         @keyframes bg-slide-up { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        @keyframes bg-notice { 0%{opacity:0;transform:scale(.85)} 10%{opacity:1;transform:scale(1.03)} 16%{transform:scale(1)} 82%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(.96)} }
       `}</style>
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 16px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
@@ -762,14 +797,32 @@ export default function GameView({ code }: { code: string }) {
         {/* 뽑기 기록 */}
         {state && (
           <section>
-            <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📣 뽑기 기록</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+              📣 뽑기 기록 <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.5 }}>누르면 연출을 다시 봐요</span>
+            </h2>
             {state.drawn.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>아직 아무도 안 뽑았어요.</p>}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {state.drawn.map((d) => {
                 const who = nameOf(d.drawnBy);
                 const meta = GRADE_META[d.grade];
                 return (
-                  <div key={d.slot} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, background: "rgba(255,255,255,.04)" }}>
+                  <button
+                    key={d.slot}
+                    onClick={() => replay(d)}
+                    aria-label="뽑기 연출 다시 보기"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: 10,
+                      borderRadius: 12,
+                      background: "rgba(255,255,255,.04)",
+                      border: "none",
+                      color: "#fff",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
                     <Avatar src={who?.image ?? null} size={30} />
                     <p style={{ flex: 1, fontSize: 14 }}>
                       <b>{who?.nickname ?? "?"}</b>{" "}
@@ -778,8 +831,8 @@ export default function GameView({ code }: { code: string }) {
                       </span>{" "}
                       {yen(d.amount)} · {d.minutes}분
                     </p>
-                    <span style={{ fontSize: 12, opacity: 0.5 }}>{timeAgo(d.drawnAt)}</span>
-                  </div>
+                    <span style={{ fontSize: 12, opacity: 0.5 }}>{timeAgo(d.drawnAt)} ▶</span>
+                  </button>
                 );
               })}
             </div>
@@ -787,21 +840,44 @@ export default function GameView({ code }: { code: string }) {
         )}
       </div>
 
-      {toast && (
+      {notice && (
         <div
+          key={notice.key}
+          role="status"
           style={{
             position: "fixed",
-            left: "50%",
-            bottom: 32,
-            transform: "translateX(-50%)",
+            inset: 0,
             zIndex: 80,
-            padding: "10px 16px",
-            borderRadius: 12,
-            background: "rgba(40,40,40,.95)",
-            fontSize: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            padding: 24,
           }}
         >
-          {toast}
+          <div
+            style={{
+              minWidth: 220,
+              maxWidth: 320,
+              padding: notice.emoji ? "24px 28px" : "18px 24px",
+              borderRadius: 24,
+              background: "rgba(28,28,30,.94)",
+              boxShadow: `0 12px 40px rgba(0,0,0,.5)${notice.color ? `, 0 0 0 1px ${notice.color}55` : ""}`,
+              backdropFilter: "blur(12px)",
+              textAlign: "center",
+              animation: `bg-notice ${NOTICE_MS}ms ease forwards`,
+            }}
+          >
+            {notice.emoji && (
+              <p style={{ fontSize: 44, lineHeight: 1, marginBottom: 10, filter: notice.color ? `drop-shadow(0 0 12px ${notice.color})` : undefined }}>
+                {notice.emoji}
+              </p>
+            )}
+            <p style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4 }}>{notice.title}</p>
+            {notice.sub && (
+              <p style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: notice.color ?? "#fff" }}>{notice.sub}</p>
+            )}
+          </div>
         </div>
       )}
       {sheet === "rules" && <RulesSheet onClose={() => setSheet(null)} />}
