@@ -56,6 +56,7 @@ export default function MapView() {
   const leafletRef = useRef<typeof Leaflet | null>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const markersRef = useRef(new Map<string, Leaflet.Marker>());
+  const iconKeysRef = useRef(new Map<string, string>());
   const accuracyCircleRef = useRef<Leaflet.Circle | null>(null);
   const fittedRef = useRef(false);
   const lastSentRef = useRef(0);
@@ -177,24 +178,29 @@ export default function MapView() {
     for (const p of merged) {
       seen.add(p.kakaoId);
       const isMe = p.kakaoId === myId;
+      const iconKey = `${p.image ?? ""}|${p.nickname ?? ""}`;
+      const makeIcon = () =>
+        L.divIcon({ html: characterElement(p, isMe), className: "", iconSize: [0, 0] });
       const existing = markersRef.current.get(p.kakaoId);
       if (existing) {
         existing.setLatLng([p.lat, p.lng]);
+        // 처음엔 사진 없이 그렸다가 서버에서 프로필이 오면 다시 그린다
+        if (iconKeysRef.current.get(p.kakaoId) !== iconKey) existing.setIcon(makeIcon());
       } else {
-        const icon = L.divIcon({
-          html: characterElement(p, isMe),
-          className: "",
-          iconSize: [0, 0],
+        const marker = L.marker([p.lat, p.lng], {
+          icon: makeIcon(),
+          zIndexOffset: isMe ? 1000 : 0,
         });
-        const marker = L.marker([p.lat, p.lng], { icon, zIndexOffset: isMe ? 1000 : 0 });
         marker.addTo(map);
         markersRef.current.set(p.kakaoId, marker);
       }
+      iconKeysRef.current.set(p.kakaoId, iconKey);
     }
     for (const [id, marker] of markersRef.current) {
       if (!seen.has(id)) {
         marker.remove();
         markersRef.current.delete(id);
+        iconKeysRef.current.delete(id);
       }
     }
 

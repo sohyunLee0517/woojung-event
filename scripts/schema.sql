@@ -16,3 +16,36 @@ create table if not exists player_locations (
   accuracy   double precision not null, -- 미터 단위 오차 반경
   updated_at timestamptz      not null default now()
 );
+
+-- 게임 방. code 로 초대 링크를 만든다.
+create table if not exists games (
+  code          text primary key,
+  host_kakao_id text        not null references players(kakao_id),
+  created_at    timestamptz not null default now()
+);
+
+-- 방에 참가한 플레이어와 현재 상태
+create table if not exists game_players (
+  game_code    text        not null references games(code) on delete cascade,
+  kakao_id     text        not null references players(kakao_id) on delete cascade,
+  seat         integer     not null,
+  tickets      integer     not null default 0,
+  money        integer     not null default 0,
+  minutes      integer     not null default 0,
+  joined_at    timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  primary key (game_code, kakao_id),
+  unique (game_code, seat)
+);
+
+-- 방마다 섞어 둔 캡슐. slot 순서대로 뽑히고, 뽑히기 전 내용은 화면에 내려주지 않는다.
+create table if not exists capsules (
+  game_code text        not null references games(code) on delete cascade,
+  slot      integer     not null,
+  grade     text        not null,
+  amount    integer     not null,
+  minutes   integer     not null,
+  drawn_by  text        references players(kakao_id),
+  drawn_at  timestamptz,
+  primary key (game_code, slot)
+);
