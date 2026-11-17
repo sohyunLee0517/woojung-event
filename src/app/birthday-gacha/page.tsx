@@ -1,9 +1,20 @@
 import { auth, signIn, signOut } from "@/auth";
+import { getPlayer, type Player } from "@/lib/players";
+
+async function loadPlayer(kakaoId?: string): Promise<Player | null> {
+  if (!kakaoId) return null;
+  try {
+    return await getPlayer(kakaoId);
+  } catch (error) {
+    console.error("[players] 플레이어 조회 실패", error);
+    return null;
+  }
+}
 
 export default async function Home() {
   const session = await auth();
   const user = session?.user;
-
+  const player = await loadPlayer(user?.id);
   return (
     <main
       style={{
@@ -32,6 +43,10 @@ export default async function Home() {
           <p style={{ fontSize: 20, fontWeight: 600 }}>
             {user.name ?? "닉네임 없음"}님, 반가워요!
           </p>
+          <p style={{ fontSize: 13, opacity: 0.6 }}>
+            {player
+              ? `플레이어 저장됨 · 로그인 ${player.login_count}회`
+              : "플레이어 정보가 아직 저장되지 않았어요"}          </p>
           <form
             action={async () => {
               "use server";

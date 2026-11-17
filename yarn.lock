@@ -708,6 +708,11 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@neondatabase/serverless@^1.2.1":
+  version "1.2.1"
+  resolved "https://registry.npmjs.org/@neondatabase/serverless/-/serverless-1.2.1.tgz"
+  integrity sha512-PI2JjuyEFE7oZDTkV/s6WP4KEceCwnjQHClfunhysuIATtvcVTBLdA4UgHTnJo7C0mkK+OZ6U7SV1NDnYa0HgA==
+
 "@next/env@16.2.0":
   version "16.2.0"
   resolved "https://registry.npmjs.org/@next/env/-/env-16.2.0.tgz"

@@ -6,9 +6,11 @@
     "dev": "next dev --port 3679",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:init": "node --env-file=.env.local scripts/db-init.mjs"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.1",
     "canvas-confetti": "^1.9.4",
     "firebase": "^12.11.0",
     "next": "16.2.0",
