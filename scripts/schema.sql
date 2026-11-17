@@ -49,3 +49,26 @@ create table if not exists capsules (
   drawn_at  timestamptz,
   primary key (game_code, slot)
 );
+
+-- 뽑기권 퀴즈 참여 기록. 2시간 구간(window_start)마다 한 번만 풀 수 있다.
+create table if not exists quiz_attempts (
+  game_code    text        not null references games(code) on delete cascade,
+  kakao_id     text        not null references players(kakao_id) on delete cascade,
+  window_start timestamptz not null,
+  question_id  text        not null,
+  choice       integer,
+  correct      boolean,
+  issued_at    timestamptz not null default now(),
+  answered_at  timestamptz,
+  primary key (game_code, kakao_id, window_start)
+);
+
+-- 퀴즈로 얻은 특수카드. used_at 이 비어 있으면 아직 안 쓴 카드.
+create table if not exists player_cards (
+  id          bigserial   primary key,
+  game_code   text        not null references games(code) on delete cascade,
+  kakao_id    text        not null references players(kakao_id) on delete cascade,
+  card_type   text        not null,
+  acquired_at timestamptz not null default now(),
+  used_at     timestamptz
+);

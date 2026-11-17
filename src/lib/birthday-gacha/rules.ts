@@ -28,8 +28,30 @@ export const CAPSULE_SET: { grade: Grade; amount: number; minutes: number }[] = 
 
 export const MAX_PLAYERS = 3;
 
-/** 방에 들어올 때 주는 뽑기권. 지금은 테스트를 위해 3장, 나중에 1장 + 미션 보상으로 바꾼다. */
+/** 방에 들어올 때 주는 뽑기권 */
 export const TICKETS_ON_JOIN = 3;
+
+/** 한 사람이 뽑을 수 있는 최대 횟수 (캡슐 9개 ÷ 3명) */
+export const MAX_DRAWS_PER_PLAYER = 3;
+
+/** 퀴즈 구간 길이. 0-2시, 2-4시 … 22-24시처럼 하루를 절대 시각으로 나눈다. */
+export const QUIZ_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/** 구간을 나누는 기준 시간대 (한국·일본 모두 UTC+9) */
+export const QUIZ_TZ_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/** 지금 시각이 속한 2시간 구간의 시작과 끝 */
+export function quizWindow(nowMs: number) {
+  const local = nowMs + QUIZ_TZ_OFFSET_MS;
+  const start = Math.floor(local / QUIZ_WINDOW_MS) * QUIZ_WINDOW_MS - QUIZ_TZ_OFFSET_MS;
+  return { start, end: start + QUIZ_WINDOW_MS };
+}
+
+/** 구간 이름. 예) "20–22시" */
+export function quizWindowLabel(startMs: number) {
+  const h = new Date(startMs + QUIZ_TZ_OFFSET_MS).getUTCHours();
+  return `${h}–${h + 2}시`;
+}
 
 /** 강탈 후에도 이 범위를 벗어나지 않는다 */
 export const MONEY_MIN = 8000;
@@ -52,3 +74,16 @@ export function stealAmount(requested: number, attackerMoney: number, targetMone
 }
 
 export const yen = (n: number) => `${n.toLocaleString("ko-KR")}엔`;
+
+/** 퀴즈를 맞히면 이 중 하나를 무작위로 받는다. 사용 규칙(야외·50m)은 다음 단계에서 붙인다. */
+export type CardType = "steal_money" | "steal_time" | "shield" | "reflect" | "rps";
+
+export const CARD_META: Record<CardType, { emoji: string; name: string; desc: string }> = {
+  steal_money: { emoji: "🏴‍☠️", name: "2,000엔 내놔!", desc: "1명을 지목해서 2,000엔을 뺏어요. (8,000~13,000엔 범위를 넘으면 깎여요)" },
+  steal_time: { emoji: "⏱️", name: "2분 내놔!", desc: "1명을 지목해서 쇼핑 시간 2분을 뺏어요." },
+  shield: { emoji: "🛡️", name: "방패", desc: "나에게 온 공격을 1번 막아요." },
+  reflect: { emoji: "🪞", name: "반사", desc: "나에게 온 공격을 공격한 사람에게 그대로 돌려줘요." },
+  rps: { emoji: "🎲", name: "가위바위보 승부", desc: "1명을 지목해 가위바위보! 이기면 2,000엔을 뺏고, 지면 1,000엔을 줘요." },
+};
+
+export const CARD_TYPES = Object.keys(CARD_META) as CardType[];

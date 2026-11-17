@@ -9,10 +9,15 @@ import {
   GRADE_META,
   MONEY_MAX,
   MONEY_MIN,
+  CARD_META,
+  MAX_DRAWS_PER_PLAYER,
   TICKETS_ON_JOIN,
+  type CardType,
+  quizWindowLabel,
   yen,
   type Grade,
 } from "@/lib/birthday-gacha/rules";
+import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
 type Phase = "idle" | "spinning" | "reveal";
@@ -122,7 +127,14 @@ function RulesSheet({ onClose }: { onClose: () => void }) {
         <section>
           <h3 style={ruleHeading}>🎰 뽑기</h3>
           <p>캡슐은 9개(3명 × 3번)이고, 방을 만들 때 섞여요. 뽑기 전에는 누구도 내용을 몰라요.</p>
-          <p>뽑기권 1장으로 캡슐 1개를 열어요. 지금은 참가하면 {TICKETS_ON_JOIN}장을 받아요.</p>
+          <p>뽑기권 1장으로 캡슐 1개를 열어요. 한 사람당 최대 {MAX_DRAWS_PER_PLAYER}번 뽑아요.</p>
+        </section>
+        <section>
+          <h3 style={ruleHeading}>🧩 특수카드 퀴즈</h3>
+          <p>참가하면 뽑기권 {TICKETS_ON_JOIN}장을 받아요. 특수카드는 퀴즈로 얻어요.</p>
+          <p>하루를 0–2시, 2–4시 … 22–24시 2시간 구간으로 나눠요(한국·일본 시간).</p>
+          <p>구간마다 퀴즈 1번만 풀 수 있어요. 틀려도 그 구간은 끝이에요.</p>
+          <p>맞히면 특수카드 1장을 무작위로 받아요. 예) 21:59에 풀었으면 1분 뒤 22시부터 다시 풀 수 있어요.</p>
         </section>
         <section>
           <h3 style={ruleHeading}>💎 캡슐 구성</h3>
@@ -147,9 +159,13 @@ function RulesSheet({ onClose }: { onClose: () => void }) {
           <p>· 넘치는 만큼은 깎여요. 예) 12,000엔인 사람이 2,000엔을 뺏으면 1,000엔만 가져와요.</p>
         </section>
         <section>
-          <h3 style={ruleHeading}>🃏 특수카드 (준비 중)</h3>
-          <p>2시간마다 퀴즈·미션이 열리고, 맞히면 카드를 받아요. 시간이 지나면 사라져요.</p>
-          <p>카드는 야외에서, 상대가 50m 안에 있을 때만 쓸 수 있어요.</p>
+          <h3 style={ruleHeading}>🃏 특수카드 (사용은 준비 중)</h3>
+          {(Object.keys(CARD_META) as CardType[]).map((t) => (
+            <p key={t}>
+              {CARD_META[t].emoji} <b>{CARD_META[t].name}</b> · {CARD_META[t].desc}
+            </p>
+          ))}
+          <p style={{ opacity: 0.7 }}>카드는 야외에서, 상대가 50m 안에 있을 때만 쓸 수 있어요.</p>
         </section>
       </div>
     </Sheet>
@@ -175,7 +191,7 @@ function PlayersSheet({ state, onClose }: { state: GameState; onClose: () => voi
                 {p.isHost && " 👑"}
               </p>
               <p style={{ fontSize: 13, opacity: 0.7 }}>
-                {p.online ? "🟢 온라인" : "⚪ 오프라인"} · 🎟️ {p.tickets}장
+                {p.online ? "🟢 온라인" : "⚪ 오프라인"} · 🎟️ {p.tickets}장 · 🃏 {p.cardCount}장
               </p>
             </div>
             <div style={{ textAlign: "right", fontSize: 14 }}>
@@ -194,7 +210,8 @@ function PlayersSheet({ state, onClose }: { state: GameState; onClose: () => voi
   );
 }
 
-function GachaMachine({ remaining, total, spinning }: { remaining: number; total: number; spinning: boolean }) {
+// 남은 캡슐 수는 보여 주지 않는다. 공은 항상 가득 찬 장식.
+function GachaMachine({ spinning }: { spinning: boolean }) {
   return (
     <div style={{ position: "relative", width: 220, margin: "0 auto" }}>
       <div
@@ -209,7 +226,7 @@ function GachaMachine({ remaining, total, spinning }: { remaining: number; total
           animation: spinning ? "bg-shake .18s linear infinite" : undefined,
         }}
       >
-        {BALL_POSITIONS.slice(0, remaining).map(([x, y], i) => (
+        {BALL_POSITIONS.map(([x, y], i) => (
           <span
             key={i}
             style={{
@@ -254,13 +271,7 @@ function GachaMachine({ remaining, total, spinning }: { remaining: number; total
         >
           <span style={{ width: 30, height: 8, borderRadius: 4, background: "#b5232f" }} />
         </div>
-        <div style={{ textAlign: "right", color: "#fff" }}>
-          <p style={{ fontSize: 12, opacity: 0.8 }}>남은 캡슐</p>
-          <p style={{ fontSize: 22, fontWeight: 800 }}>
-            {remaining}
-            <span style={{ fontSize: 14, opacity: 0.8 }}>/{total}</span>
-          </p>
-        </div>
+        <p style={{ color: "#fff", fontSize: 15, fontWeight: 900, letterSpacing: 0.5, whiteSpace: "nowrap" }}>🎂 GACHA</p>
       </div>
     </div>
   );
@@ -329,6 +340,126 @@ const primaryButton: CSSProperties = {
   cursor: "pointer",
 };
 
+type PublicQuiz = { id: string; question: string; choices: string[] };
+type AnswerResult = { correct: boolean; answer: number; card: CardType | null };
+
+function formatCountdown(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+
+function clockTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
+}
+
+function QuizCard({ quiz, now, onOpen }: { quiz: QuizStatus; now: number; onOpen: () => void }) {
+  const label = quizWindowLabel(new Date(quiz.windowStart).getTime());
+  const box: CSSProperties = {
+    padding: 16,
+    borderRadius: 16,
+    background: "rgba(255,255,255,.06)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  };
+  if (quiz.eligible) {
+    return (
+      <section style={{ ...box, border: "1px solid rgba(254,229,0,.5)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <p style={{ fontWeight: 700 }}>🧩 {label} 퀴즈가 열렸어요!</p>
+          <p style={{ fontSize: 12, opacity: 0.7 }}>
+            마감까지 {formatCountdown(new Date(quiz.windowEnd).getTime() - now)}
+          </p>
+        </div>
+        <p style={{ fontSize: 13, opacity: 0.7 }}>맞히면 🃏 특수카드 1장 · 이 구간에 한 번만 풀 수 있어요</p>
+        <button onClick={onOpen} style={{ ...primaryButton, padding: "12px 16px", fontSize: 16 }}>
+          {quiz.hasOpenQuestion ? "이어서 풀기" : "퀴즈 풀기"}
+        </button>
+      </section>
+    );
+  }
+  const next = quiz.nextAvailableAt ? new Date(quiz.nextAvailableAt).getTime() : now;
+  return (
+    <section style={box}>
+      <p style={{ fontWeight: 700 }}>✅ {label} 퀴즈 참여 완료</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <p style={{ fontSize: 14, opacity: 0.75 }}>다음 퀴즈까지</p>
+        <p style={{ fontSize: 26, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{formatCountdown(next - now)}</p>
+      </div>
+      {quiz.lastParticipatedAt && (
+        <p style={{ fontSize: 12, opacity: 0.6 }}>
+          마지막 참여 {clockTime(quiz.lastParticipatedAt)} · {quiz.nextAvailableAt && `${clockTime(quiz.nextAvailableAt)}부터 다시 가능`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function QuizSheet({
+  quiz,
+  result,
+  submitting,
+  onAnswer,
+  onClose,
+}: {
+  quiz: PublicQuiz | null;
+  result: AnswerResult | null;
+  submitting: boolean;
+  onAnswer: (choice: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet title="🧩 특수카드 퀴즈" onClose={onClose}>
+      {!quiz ? (
+        <p style={{ opacity: 0.6 }}>문제를 불러오는 중…</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.5 }}>{quiz.question}</p>
+          {quiz.choices.map((c, i) => {
+            const isAnswer = result && i === result.answer;
+            return (
+              <button
+                key={i}
+                disabled={!!result || submitting}
+                onClick={() => onAnswer(i)}
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  border: `2px solid ${isAnswer ? "#22c55e" : "rgba(255,255,255,.15)"}`,
+                  background: isAnswer ? "rgba(34,197,94,.15)" : "rgba(255,255,255,.05)",
+                  color: "#fff",
+                  fontSize: 16,
+                  textAlign: "left",
+                  cursor: result ? "default" : "pointer",
+                }}
+              >
+                {["①", "②", "③", "④"][i]} {c}
+              </button>
+            );
+          })}
+          {result && (
+            <div style={{ textAlign: "center", padding: 12, animation: "bg-pop .4s ease-out both" }}>
+              <p style={{ fontSize: 22, fontWeight: 800 }}>{result.correct ? "🎉 정답!" : "😢 아쉽게 오답"}</p>
+              <p style={{ fontSize: 14, opacity: 0.8, marginTop: 4 }}>
+                {result.correct && result.card
+                  ? `${CARD_META[result.card].emoji} ${CARD_META[result.card].name} 카드를 받았어요`
+                  : "다음 구간에 다시 도전해요"}
+              </p>
+              <button onClick={onClose} style={{ ...primaryButton, marginTop: 12, width: "100%" }}>
+                확인
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 function timeAgo(iso: string) {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return "방금";
@@ -342,14 +473,22 @@ export default function GameView({ code }: { code: string }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<DrawnResult | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<"rules" | "players" | null>(null);
+  const [sheet, setSheet] = useState<"rules" | "players" | "quiz" | null>(null);
+  const [quizData, setQuizData] = useState<PublicQuiz | null>(null);
+  const [quizResult, setQuizResult] = useState<AnswerResult | null>(null);
+  const [quizSubmitting, setQuizSubmitting] = useState(false);
+  // 서버 시각과 내 폰 시각 차이. 남은 시간은 서버 시각 기준으로 센다.
+  const [clockOffset, setClockOffset] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/birthday-gacha/games/${code}`, { cache: "no-store" });
       if (res.status === 404) return setLoadError("없는 방이에요. 코드를 다시 확인해 주세요.");
       if (!res.ok) return;
-      setState((await res.json()) as GameState);
+      const data = (await res.json()) as GameState;
+      setState(data);
+      setClockOffset(new Date(data.serverNow).getTime() - Date.now());
       setLoadError(null);
     } catch {
       // 다음 주기에 다시 시도
@@ -361,6 +500,11 @@ export default function GameView({ code }: { code: string }) {
     const id = setInterval(load, GAME_POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -393,6 +537,48 @@ export default function GameView({ code }: { code: string }) {
     if (data.capsule.grade === "SSR" || data.capsule.grade === "SR") {
       const confetti = (await import("canvas-confetti")).default;
       confetti({ particleCount: data.capsule.grade === "SSR" ? 220 : 90, spread: 90, origin: { y: 0.45 }, zIndex: 70 });
+    }
+    load();
+  };
+
+  const openQuiz = async () => {
+    setQuizData(null);
+    setQuizResult(null);
+    setSheet("quiz");
+    const res = await fetch(`/api/birthday-gacha/games/${code}/quiz`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "start" }),
+    }).catch(() => null);
+    const data = res ? ((await res.json()) as { ok: boolean; quiz?: PublicQuiz; reason?: string }) : null;
+    if (!data?.ok || !data.quiz) {
+      setSheet(null);
+      setToast(data?.reason === "already" ? "이번 구간은 이미 참여했어요." : "퀴즈를 불러오지 못했어요.");
+      load();
+      return;
+    }
+    setQuizData(data.quiz);
+  };
+
+  const answerQuiz = async (choice: number) => {
+    if (quizSubmitting || quizResult) return;
+    setQuizSubmitting(true);
+    const res = await fetch(`/api/birthday-gacha/games/${code}/quiz`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "answer", choice }),
+    }).catch(() => null);
+    const data = res ? ((await res.json()) as { ok: boolean; reason?: string } & Partial<AnswerResult>) : null;
+    setQuizSubmitting(false);
+    if (!data?.ok) {
+      setSheet(null);
+      setToast(data?.reason === "no_question" ? "구간이 바뀌었어요. 새 퀴즈를 열어 주세요." : "이미 참여했어요.");
+    } else {
+      setQuizResult({ correct: !!data.correct, answer: data.answer ?? -1, card: data.card ?? null });
+      if (data.correct) {
+        const confetti = (await import("canvas-confetti")).default;
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, zIndex: 70 });
+      }
     }
     load();
   };
@@ -509,7 +695,7 @@ export default function GameView({ code }: { code: string }) {
               { label: "💴 금액", value: yen(me.money) },
               { label: "⏱️ 시간", value: `${me.minutes}분` },
               { label: "🎟️ 뽑기권", value: `${me.tickets}장` },
-              { label: "🃏 카드", value: "0장" },
+              { label: "🃏 카드", value: `${state?.myCards.length ?? 0}장` },
             ].map((s) => (
               <div key={s.label} style={{ padding: "10px 6px", borderRadius: 14, background: "rgba(255,255,255,.06)", textAlign: "center" }}>
                 <p style={{ fontSize: 11, opacity: 0.7 }}>{s.label}</p>
@@ -519,10 +705,39 @@ export default function GameView({ code }: { code: string }) {
           </section>
         )}
 
+        {/* 뽑기권 퀴즈 */}
+        {me && state?.quiz && <QuizCard quiz={state.quiz} now={now + clockOffset} onOpen={openQuiz} />}
+
+        {/* 내 특수카드 */}
+        {me && state && state.myCards.length > 0 && (
+          <section>
+            <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>🃏 내 특수카드</h2>
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+              {state.myCards.map((c) => (
+                <div
+                  key={c.id}
+                  style={{
+                    flex: "0 0 132px",
+                    padding: 12,
+                    borderRadius: 14,
+                    background: "linear-gradient(160deg, rgba(254,229,0,.18), rgba(255,255,255,.04))",
+                    border: "1px solid rgba(254,229,0,.35)",
+                  }}
+                >
+                  <p style={{ fontSize: 28 }}>{CARD_META[c.type].emoji}</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, marginTop: 4 }}>{CARD_META[c.type].name}</p>
+                  <p style={{ fontSize: 11, opacity: 0.7, marginTop: 4, lineHeight: 1.4 }}>{CARD_META[c.type].desc}</p>
+                  <p style={{ fontSize: 11, opacity: 0.5, marginTop: 6 }}>사용은 곧 열려요</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* 가챠 기계 */}
         {state && (
           <section style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "stretch" }}>
-            <GachaMachine remaining={state.remainingCapsules} total={state.totalCapsules} spinning={phase === "spinning"} />
+            <GachaMachine spinning={phase === "spinning"} />
             {me && (
               <button
                 onClick={draw}
@@ -591,6 +806,15 @@ export default function GameView({ code }: { code: string }) {
       )}
       {sheet === "rules" && <RulesSheet onClose={() => setSheet(null)} />}
       {sheet === "players" && state && <PlayersSheet state={state} onClose={() => setSheet(null)} />}
+      {sheet === "quiz" && (
+        <QuizSheet
+          quiz={quizData}
+          result={quizResult}
+          submitting={quizSubmitting}
+          onAnswer={answerQuiz}
+          onClose={() => setSheet(null)}
+        />
+      )}
       {phase === "reveal" && result && (
         <RevealOverlay
           result={result}

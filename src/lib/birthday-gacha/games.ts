@@ -1,10 +1,13 @@
 import { randomInt } from "node:crypto";
 import { getSql } from "@/lib/db";
+import { getQuizStatus, type QuizStatus } from "@/lib/birthday-gacha/quiz";
 import {
   CAPSULE_SET,
+  MAX_DRAWS_PER_PLAYER,
   MAX_PLAYERS,
   ONLINE_WITHIN_S,
   TICKETS_ON_JOIN,
+  type CardType,
   type Grade,
 } from "@/lib/birthday-gacha/rules";
 
@@ -89,6 +92,8 @@ export type GamePlayer = {
   minutes: number;
   online: boolean;
   isHost: boolean;
+  /** 안 쓴 특수카드 수 (종류는 본인만 안다) */
+  cardCount: number;
 };
 
 export type DrawnCapsule = {
@@ -108,6 +113,12 @@ export type GameState = {
   totalCapsules: number;
   remainingCapsules: number;
   drawn: DrawnCapsule[];
+  /** 내가 가진 안 쓴 특수카드 */
+  myCards: { id: number; type: CardType; acquiredAt: string }[];
+  /** 내 퀴즈 상태 (참가 전이면 null) */
+  quiz: QuizStatus | null;
+  /** 남은 시간 계산용 서버 시각 */
+  serverNow: string;
 };
 
 /** 화면에 내려줄 방 상태. 뽑히지 않은 캡슐의 내용은 포함하지 않는다. */
@@ -127,7 +138,9 @@ export async function getGameState(code: string, me: string): Promise<GameState 
 
   const players = (await sql`
     select gp.kakao_id, p.nickname, p.profile_image, gp.seat, gp.tickets, gp.money, gp.minutes,
-           (now() - gp.last_seen_at) < make_interval(secs => ${ONLINE_WITHIN_S}) as online
+           (now() - gp.last_seen_at) < make_interval(secs => ${ONLINE_WITHIN_S}) as online,
+           (select count(*)::int from player_cards pc
+             where pc.game_code = gp.game_code and pc.kakao_id = gp.kakao_id and pc.used_at is null) as card_count
     from game_players gp
     join players p on p.kakao_id = gp.kakao_id
     where gp.game_code = ${code}
@@ -141,7 +154,14 @@ export async function getGameState(code: string, me: string): Promise<GameState 
     money: number;
     minutes: number;
     online: boolean;
+    card_count: number;
   }[];
+
+  const myCards = (await sql`
+    select id, card_type, acquired_at from player_cards
+    where game_code = ${code} and kakao_id = ${me} and used_at is null
+    order by acquired_at
+  `) as { id: number; card_type: CardType; acquired_at: string }[];
 
   const capsules = (await sql`
     select slot, grade, amount, minutes, drawn_by, drawn_at
@@ -181,10 +201,18 @@ export async function getGameState(code: string, me: string): Promise<GameState 
       minutes: p.minutes,
       online: p.online,
       isHost: p.kakao_id === host,
+      cardCount: p.card_count,
     })),
     totalCapsules: capsules.length,
     remainingCapsules: capsules.length - drawn.length,
     drawn,
+    myCards: myCards.map((c) => ({
+      id: Number(c.id),
+      type: c.card_type,
+      acquiredAt: new Date(c.acquired_at).toISOString(),
+    })),
+    quiz: await getQuizStatus(code, me),
+    serverNow: new Date().toISOString(),
   };
 }
 
@@ -206,6 +234,10 @@ export async function drawCapsule(code: string, kakaoId: string): Promise<DrawRe
           select 1 from game_players
           where game_code = ${code} and kakao_id = ${kakaoId} and tickets > 0
         )
+        and (
+          select count(*) from capsules mine
+          where mine.game_code = ${code} and mine.drawn_by = ${kakaoId}
+        ) < ${MAX_DRAWS_PER_PLAYER}
       order by slot
       limit 1
       for update skip locked
