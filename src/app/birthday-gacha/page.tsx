@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth, signIn, signOut } from "@/auth";
 import { getPlayer, type Player } from "@/lib/players";
 
@@ -46,7 +47,20 @@ export default async function Home() {
           <p style={{ fontSize: 13, opacity: 0.6 }}>
             {player
               ? `플레이어 저장됨 · 로그인 ${player.login_count}회`
-              : "플레이어 정보가 아직 저장되지 않았어요"}          </p>
+              : "플레이어 정보가 아직 저장되지 않았어요"}
+          </p>
+          <Link
+            href="/birthday-gacha/map"
+            style={{
+              padding: "12px 24px",
+              background: "#FEE500",
+              color: "#191919",
+              borderRadius: 8,
+              fontWeight: 600,
+            }}
+          >
+            🗺️ 지도 열기
+          </Link>
           <form
             action={async () => {
               "use server";
