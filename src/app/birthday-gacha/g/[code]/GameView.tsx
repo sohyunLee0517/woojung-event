@@ -20,6 +20,7 @@ import {
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 import InstallCard from "./InstallCard";
 import PushCard from "./PushCard";
+import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { roomMapHref } from "@/lib/birthday-gacha/nav";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
@@ -666,7 +667,7 @@ export default function GameView({ code }: { code: string }) {
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 16px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
         {/* 상단 바 */}
-        <header style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <header style={stickyHeaderStyle}>
           <Link href={state?.roomCode ? `/r/${state.roomCode}` : "/"} aria-label="방으로" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
             ←
           </Link>

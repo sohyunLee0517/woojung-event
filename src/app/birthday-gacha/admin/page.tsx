@@ -6,6 +6,7 @@ import { adminAccess, adminIds } from "@/lib/birthday-gacha/admin";
 import { getAdminOverview } from "@/lib/birthday-gacha/admin-data";
 import { notifyQuizWindow } from "@/lib/birthday-gacha/notify";
 import BackButton from "./BackButton";
+import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export default async function AdminPage() {
   return (
     <main style={page}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <header style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <header style={stickyHeaderStyle}>
           <BackButton style={iconBack} />
           <h1 style={{ flex: 1, fontSize: 18, fontWeight: 800 }}>🛠 관리자</h1>
         </header>

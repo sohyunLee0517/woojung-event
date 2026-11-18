@@ -36,7 +36,7 @@ export function cameraErrorMessage(e: unknown): string {
       return "카메라를 다른 앱(줌·페이스타임 등)이나 다른 탭이 쓰고 있는 것 같아요. 닫고 다시 켜 주세요. 맥이라면 시스템 설정 → 개인정보 보호 및 보안 → 카메라에서 Chrome 을 켜 주세요.";
     case "NotFoundError":
     case "OverconstrainedError":
-      return "카메라를 찾을 수 없어요. 카메라가 연결돼 있는지 확인해 주세요.";
+      return "이 기기에서 카메라를 찾을 수 없어요. 노트북 덮개를 닫고 외부 모니터를 쓰는 중이면 내장 카메라가 꺼져 있어요. 덮개를 열거나 휴대폰으로 호스트를 해 주세요.";
     default:
       return "카메라를 켤 수 없어요. 잠시 후 다시 시도해 주세요.";
   }

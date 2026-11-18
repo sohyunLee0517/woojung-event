@@ -1,5 +1,19 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+/** 상단은 항상 고정, 아래 영역만 스크롤 (스크롤 컨테이너 안에서 sticky) */
+export const stickyHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flex: "0 0 auto",
+  position: "sticky",
+  top: 0,
+  zIndex: 30,
+  background: "#0a0a0a",
+  margin: "-16px -16px 0",
+  padding: "12px 16px",
+};
 
 /** 모든 화면 공통 상단: 왼쪽 뒤로가기(←) + 제목 + 오른쪽 버튼들 */
 export default function TopBar({
@@ -14,7 +28,7 @@ export default function TopBar({
   right?: ReactNode;
 }) {
   return (
-    <header style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+    <header style={stickyHeaderStyle}>
       {backHref && (
         <Link
           href={backHref}
