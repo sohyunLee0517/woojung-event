@@ -20,7 +20,7 @@ import {
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 import InstallCard from "./InstallCard";
 import PushCard from "./PushCard";
-import { mapHref } from "@/lib/birthday-gacha/nav";
+import { roomMapHref } from "@/lib/birthday-gacha/nav";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
 // 화면 가운데에 잠깐 떴다 사라지는 알림
@@ -667,7 +667,7 @@ export default function GameView({ code }: { code: string }) {
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "16px 16px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
         {/* 상단 바 */}
         <header style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Link href="/birthday-gacha" aria-label="홈" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Link href={state?.roomCode ? `/r/${state.roomCode}` : "/"} aria-label="방으로" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
             ←
           </Link>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -702,9 +702,11 @@ export default function GameView({ code }: { code: string }) {
               </span>
             )}
           </button>
-          <Link href={mapHref(`/birthday-gacha/g/${code}`)} aria-label="지도" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {roomMapHref(state?.roomCode) && (
+            <Link href={roomMapHref(state?.roomCode) as string} aria-label="지도" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
             🗺️
           </Link>
+          )}
         </header>
 
         {loadError && <p style={{ color: "#f97316" }}>{loadError}</p>}

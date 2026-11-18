@@ -93,3 +93,151 @@ create table if not exists push_notifications (
 
 -- 알림은 마지막으로 접속한 기기 한 대에만 보낸다. 방 화면을 열 때마다 갱신된다.
 alter table push_subscriptions add column if not exists last_seen_at timestamptz not null default now();
+
+-- ===== 우끼끼(우리끼리): 방 안에서 여러 게임을 한다 =====
+
+-- 친구들이 모이는 방. 비밀방은 비밀번호 해시만 저장한다.
+create table if not exists uk_rooms (
+  code           text        primary key,
+  name           text        not null,
+  owner_kakao_id text        not null references players(kakao_id),
+  visibility     text        not null check (visibility in ('public', 'private')),
+  password_hash  text,
+  created_at     timestamptz not null default now()
+);
+
+-- 방 멤버. 비밀방은 한 번 비밀번호를 맞히면 멤버가 되어 다시 묻지 않는다.
+create table if not exists uk_room_members (
+  room_code    text        not null references uk_rooms(code) on delete cascade,
+  kakao_id     text        not null references players(kakao_id) on delete cascade,
+  joined_at    timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  primary key (room_code, kakao_id)
+);
+
+-- 방 안에서 열린 게임 한 판. 가챠는 ref_code 로 기존 가챠 게임을 가리킨다.
+create table if not exists uk_room_games (
+  id            bigserial   primary key,
+  room_code     text        not null references uk_rooms(code) on delete cascade,
+  game_type     text        not null check (game_type in ('fanfare', 'gacha')),
+  host_kakao_id text        not null references players(kakao_id),
+  status        text        not null default 'active' check (status in ('active', 'ended')),
+  ref_code      text,
+  created_at    timestamptz not null default now(),
+  ended_at      timestamptz
+);
+
+-- 방마다 진행 중인 빵빠레는 1개만 (동시에 만들어도 DB가 하나만 받아 준다)
+create unique index if not exists uk_one_active_fanfare
+  on uk_room_games (room_code) where game_type = 'fanfare' and status = 'active'
+;
+
+-- 가챠 뽑기 1번. 플레이어 줄을 잠근 채로 뽑기권·최대 횟수를 확인해서
+-- 같은 사람이 연타해도 정해진 횟수 넘게 뽑히지 않는다.
+create or replace function bg_draw_capsule(p_code text, p_kakao text, p_max int)
+returns table (out_grade text, out_amount int, out_minutes int, out_reason text)
+language plpgsql as $$
+declare
+  v_tickets int;
+  v_drawn int;
+  v_slot int;
+  v_grade text;
+  v_amount int;
+  v_minutes int;
+begin
+  select gp.tickets into v_tickets from game_players gp
+  where gp.game_code = p_code and gp.kakao_id = p_kakao
+  for update;
+  if not found then
+    return query select null::text, null::int, null::int, 'not_member'::text;
+    return;
+  end if;
+  if v_tickets <= 0 then
+    return query select null::text, null::int, null::int, 'no_ticket'::text;
+    return;
+  end if;
+
+  select count(*) into v_drawn from capsules c where c.game_code = p_code and c.drawn_by = p_kakao;
+  if v_drawn >= p_max then
+    return query select null::text, null::int, null::int, 'no_ticket'::text;
+    return;
+  end if;
+
+  select c.slot into v_slot from capsules c
+  where c.game_code = p_code and c.drawn_by is null
+  order by c.slot limit 1
+  for update skip locked;
+  if v_slot is null then
+    if exists (select 1 from capsules c where c.game_code = p_code and c.drawn_by is null) then
+      return query select null::text, null::int, null::int, 'busy'::text;
+    else
+      return query select null::text, null::int, null::int, 'empty'::text;
+    end if;
+    return;
+  end if;
+
+  update capsules c set drawn_by = p_kakao, drawn_at = now()
+  where c.game_code = p_code and c.slot = v_slot
+  returning c.grade, c.amount, c.minutes into v_grade, v_amount, v_minutes;
+
+  update game_players gp
+  set tickets = gp.tickets - 1, money = gp.money + v_amount, minutes = gp.minutes + v_minutes
+  where gp.game_code = p_code and gp.kakao_id = p_kakao;
+
+  return query select v_grade, v_amount, v_minutes, null::text;
+end;
+$$
+;
+
+-- 게임 한 판에 참여한 사람 (빵빠레는 화면에 들어온 사람, 가챠는 game_players 를 쓴다)
+create table if not exists uk_game_participants (
+  game_id   bigint      not null references uk_room_games(id) on delete cascade,
+  kakao_id  text        not null references players(kakao_id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (game_id, kakao_id)
+)
+;
+
+-- 방 나가기. 방 줄을 잠그고 처리해서 여럿이 동시에 나가도 꼬이지 않는다.
+--  · 진행 중인 빵빠레를 열어 둔 사람이 나가면 그 빵빠레는 끝난다
+--  · 방장이 나가면 가장 먼저 들어온 멤버가 방장이 된다
+--  · 마지막 한 명이 나가면 방이 없어진다
+create or replace function uk_leave_room(p_code text, p_kakao text)
+returns table (out_ok boolean, out_reason text, out_deleted boolean)
+language plpgsql as $$
+declare
+  v_owner text;
+  v_next text;
+begin
+  select r.owner_kakao_id into v_owner from uk_rooms r where r.code = p_code for update;
+  if not found then
+    return query select false, 'not_member'::text, false;
+    return;
+  end if;
+
+  delete from uk_room_members m where m.room_code = p_code and m.kakao_id = p_kakao;
+  if not found then
+    return query select false, 'not_member'::text, false;
+    return;
+  end if;
+
+  update uk_room_games g set status = 'ended', ended_at = now()
+  where g.room_code = p_code and g.game_type = 'fanfare' and g.status = 'active' and g.host_kakao_id = p_kakao;
+
+  select m.kakao_id into v_next from uk_room_members m
+  where m.room_code = p_code
+  order by m.joined_at, m.kakao_id
+  limit 1;
+
+  if v_next is null then
+    delete from uk_rooms r where r.code = p_code;
+    return query select true, null::text, true;
+    return;
+  end if;
+
+  if v_owner = p_kakao then
+    update uk_rooms r set owner_kakao_id = v_next where r.code = p_code;
+  end if;
+  return query select true, null::text, false;
+end;
+$$

@@ -51,7 +51,7 @@ function secondsAgo(iso: string) {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
 }
 
-export default function MapView({ backHref, backLabel }: { backHref: string; backLabel: string }) {
+export default function MapView({ roomCode, backHref, backLabel }: { roomCode: string; backHref: string; backLabel: string }) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const leafletRef = useRef<typeof Leaflet | null>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
@@ -134,7 +134,7 @@ export default function MapView({ backHref, backLabel }: { backHref: string; bac
     let stopped = false;
     const load = async () => {
       try {
-        const res = await fetch("/api/birthday-gacha/locations", { cache: "no-store" });
+        const res = await fetch(`/api/birthday-gacha/locations?room=${roomCode}`, { cache: "no-store" });
         if (!res.ok) return;
         const data = (await res.json()) as { me: string; locations: PlayerLocation[] };
         if (stopped) return;

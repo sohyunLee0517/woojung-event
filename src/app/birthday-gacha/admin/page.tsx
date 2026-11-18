@@ -27,6 +27,17 @@ const button: CSSProperties = {
   cursor: "pointer",
 };
 
+const iconBack: CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: 12,
+  border: "none",
+  background: "rgba(255,255,255,.1)",
+  color: "#fff",
+  fontSize: 18,
+  cursor: "pointer",
+};
+
 function clock(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("ko-KR", {
@@ -42,29 +53,20 @@ export default async function AdminPage() {
   const session = await auth();
   const access = adminAccess(session?.user?.id, adminIds());
 
-  if (access === "login") redirect("/birthday-gacha?next=/birthday-gacha/admin");
+  if (access === "login") redirect("/?next=/birthday-gacha/admin");
 
   if (access === "forbidden") {
     return (
       <main style={page}>
-        <div
-          style={{
-            maxWidth: 420,
-            minHeight: "100%",
-            margin: "0 auto",
-            padding: "32px 20px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 16,
-            textAlign: "center",
-          }}
-        >
-          <p style={{ fontSize: 40 }}>🔒</p>
-          <p style={{ fontSize: 17, fontWeight: 700 }}>관리자만 볼 수 있는 화면이에요</p>
-          <p style={{ fontSize: 14, opacity: 0.7 }}>필요하면 관리자에게 요청해 주세요.</p>
-          <BackButton style={button} />
+        <div style={{ maxWidth: 420, minHeight: "100%", margin: "0 auto", padding: "16px 16px", display: "flex", flexDirection: "column" }}>
+          <header style={{ display: "flex" }}>
+            <BackButton style={iconBack} />
+          </header>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", paddingBottom: 80 }}>
+            <p style={{ fontSize: 40 }}>🔒</p>
+            <p style={{ fontSize: 17, fontWeight: 700 }}>관리자만 볼 수 있는 화면이에요</p>
+            <p style={{ fontSize: 14, opacity: 0.7 }}>필요하면 관리자에게 요청해 주세요.</p>
+          </div>
         </div>
       </main>
     );
@@ -77,7 +79,7 @@ export default async function AdminPage() {
     <main style={page}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <BackButton style={{ ...button, padding: "8px 12px" }} />
+          <BackButton style={iconBack} />
           <h1 style={{ flex: 1, fontSize: 18, fontWeight: 800 }}>🛠 관리자</h1>
         </header>
 

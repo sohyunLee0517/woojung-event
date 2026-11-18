@@ -120,9 +120,19 @@ export type GameState = {
   quiz: QuizStatus | null;
   /** 남은 시간 계산용 서버 시각 */
   serverNow: string;
+  /** 이 가챠가 열린 우끼끼 방 코드 (옛날 가챠면 null) */
+  roomCode: string | null;
   /** 푸시 알림을 등록한 내 기기 수 */
   pushDevices: number;
 };
+
+async function parentRoomCode(code: string): Promise<string | null> {
+  const sql = getSql();
+  const rows = (await sql`
+    select room_code from uk_room_games where game_type = 'gacha' and ref_code = ${code} limit 1
+  `) as { room_code: string }[];
+  return rows[0]?.room_code ?? null;
+}
 
 /** 화면에 내려줄 방 상태. 뽑히지 않은 캡슐의 내용은 포함하지 않는다. */
 export async function getGameState(code: string, me: string): Promise<GameState | null> {
@@ -217,6 +227,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
     quiz: await getQuizStatus(code, me),
     serverNow: new Date().toISOString(),
     pushDevices: await pushDeviceCount(me),
+    roomCode: await parentRoomCode(code),
   };
 }
 
@@ -226,55 +237,21 @@ export type DrawResult =
 
 /**
  * 뽑기권 1장을 쓰고 남은 캡슐 중 다음 것을 연다.
- * 캡슐 차지 + 뽑기권 차감 + 금액·시간 누적을 한 문장으로 처리해 동시에 눌러도 꼬이지 않게 한다.
+ * DB 함수가 플레이어 줄을 잠근 채 처리해서, 연타하거나 여럿이 동시에 눌러도
+ * 캡슐이 두 번 뽑히거나 정해진 횟수를 넘지 않는다. (scripts/schema.sql 의 bg_draw_capsule)
  */
 export async function drawCapsule(code: string, kakaoId: string): Promise<DrawResult> {
   const sql = getSql();
   const rows = (await sql`
-    with pick as (
-      select slot from capsules
-      where game_code = ${code} and drawn_by is null
-        and exists (
-          select 1 from game_players
-          where game_code = ${code} and kakao_id = ${kakaoId} and tickets > 0
-        )
-        and (
-          select count(*) from capsules mine
-          where mine.game_code = ${code} and mine.drawn_by = ${kakaoId}
-        ) < ${MAX_DRAWS_PER_PLAYER}
-      order by slot
-      limit 1
-      for update skip locked
-    ), c as (
-      update capsules set drawn_by = ${kakaoId}, drawn_at = now()
-      from pick
-      where capsules.game_code = ${code} and capsules.slot = pick.slot
-      returning capsules.grade, capsules.amount, capsules.minutes
-    ), p as (
-      update game_players gp
-      set tickets = gp.tickets - 1,
-          money = gp.money + c.amount,
-          minutes = gp.minutes + c.minutes
-      from c
-      where gp.game_code = ${code} and gp.kakao_id = ${kakaoId}
-      returning gp.kakao_id
-    )
-    select c.grade, c.amount, c.minutes from c, p
-  `) as { grade: Grade; amount: number; minutes: number }[];
-
-  if (rows.length > 0) return { ok: true, capsule: rows[0] };
-
-  // 왜 못 뽑았는지 알려 준다
-  const me = (await sql`
-    select tickets from game_players where game_code = ${code} and kakao_id = ${kakaoId}
-  `) as { tickets: number }[];
-  if (me.length === 0) return { ok: false, reason: "not_member" };
-  if (me[0].tickets <= 0) return { ok: false, reason: "no_ticket" };
-  const left = (await sql`
-    select count(*)::int as n from capsules where game_code = ${code} and drawn_by is null
-  `) as { n: number }[];
-  if (left[0].n === 0) return { ok: false, reason: "empty" };
-  return { ok: false, reason: "busy" };
+    select out_grade, out_amount, out_minutes, out_reason
+    from bg_draw_capsule(${code}, ${kakaoId}, ${MAX_DRAWS_PER_PLAYER})
+  `) as { out_grade: Grade | null; out_amount: number | null; out_minutes: number | null; out_reason: string | null }[];
+  const r = rows[0];
+  if (r && !r.out_reason && r.out_grade) {
+    return { ok: true, capsule: { grade: r.out_grade, amount: Number(r.out_amount), minutes: Number(r.out_minutes) } };
+  }
+  const reason = (r?.out_reason ?? "busy") as "no_ticket" | "empty" | "not_member" | "busy";
+  return { ok: false, reason };
 }
 
 /** 내가 참가한 방 목록 (최근 순) */

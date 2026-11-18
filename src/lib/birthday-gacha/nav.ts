@@ -1,12 +1,6 @@
-// 지도 ↔ 방 이동. 지도에서 '돌아가기'를 누르면 온 곳(방)으로 돌려보낸다.
+// 지도는 방 안에 있다. 방 지도에서 '← 방으로'를 누르면 그 방으로 돌아간다.
+const ROOM_CODE = /^[A-Z0-9]{6}$/;
 
-const ROOM_PATH = /^\/birthday-gacha\/g\/[A-Z0-9]{6}$/;
-
-export function mapHref(from?: string) {
-  return from ? `/birthday-gacha/map?from=${encodeURIComponent(from)}` : "/birthday-gacha/map";
-}
-
-export function mapBack(from: string | null | undefined): { href: string; label: string } {
-  if (from && ROOM_PATH.test(from)) return { href: from, label: "← 방으로" };
-  return { href: "/birthday-gacha", label: "← 홈" };
+export function roomMapHref(roomCode: string | null | undefined): string | null {
+  return roomCode && ROOM_CODE.test(roomCode) ? `/r/${roomCode}/map` : null;
 }

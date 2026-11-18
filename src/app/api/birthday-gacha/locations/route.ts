@@ -1,21 +1,20 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import {
-  deleteLocation,
-  listRecentLocations,
-  upsertLocation,
-} from "@/lib/birthday-gacha/locations";
+import { deleteLocation, upsertLocation } from "@/lib/birthday-gacha/locations";
+import { listRoomLocations } from "@/lib/ukiki/map";
 
 async function requireKakaoId() {
   const session = await auth();
   return session?.user?.id ?? null;
 }
 
-// 지도에 표시할 플레이어 위치 목록
-export async function GET() {
+// 방 지도에 표시할 위치 목록 (?room=코드). 그 방 멤버 위치만 준다.
+export async function GET(request: Request) {
   const kakaoId = await requireKakaoId();
   if (!kakaoId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const locations = await listRecentLocations();
+  const room = (new URL(request.url).searchParams.get("room") ?? "").toUpperCase();
+  const locations = await listRoomLocations(room, kakaoId);
+  if (!locations) return NextResponse.json({ error: "not_member" }, { status: 403 });
   return NextResponse.json({ me: kakaoId, locations });
 }
 

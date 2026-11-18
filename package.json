@@ -9,7 +9,10 @@
     "lint": "next lint",
     "db:init": "node --env-file=.env.local scripts/db-init.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run src",
+    "seed:sample": "SAMPLE_MODE=make node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/ukiki/sample-rooms.seed.test.ts",
+    "seed:clean": "SAMPLE_MODE=clean node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/ukiki/sample-rooms.seed.test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",

@@ -7,10 +7,11 @@ export default function BackButton({ style }: { style?: CSSProperties }) {
   const router = useRouter();
   return (
     <button
+      aria-label="뒤로가기"
       onClick={() => (window.history.length > 1 ? router.back() : router.push("/birthday-gacha"))}
       style={style}
     >
-      ← 뒤로가기
+      ←
     </button>
   );
 }

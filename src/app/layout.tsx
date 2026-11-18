@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "우정의 온도",
-  description: "The Dramatic Reveal",
+  title: "우끼끼 · 우리끼리",
+  description: "우리끼리 하는 미니게임 천국",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
