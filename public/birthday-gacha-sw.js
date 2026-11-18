@@ -9,7 +9,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "🎂 생일 가챠";
+  const title = data.title || "🐵 우끼끼";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",

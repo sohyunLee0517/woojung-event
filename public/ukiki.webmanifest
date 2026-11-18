@@ -1,8 +1,8 @@
 {
-  "name": "생일 가챠",
-  "short_name": "생일 가챠",
-  "start_url": "/birthday-gacha",
-  "scope": "/birthday-gacha",
+  "name": "우끼끼 · 우리끼리",
+  "short_name": "우끼끼",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
