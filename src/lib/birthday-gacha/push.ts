@@ -1,6 +1,7 @@
 import { sendNotification, setVapidDetails } from "web-push";
 import { getSql } from "@/lib/db";
 import { orderByRecency } from "@/lib/birthday-gacha/push-target";
+import { expoTokenOf, isExpoEndpoint, sendExpoPush } from "@/lib/birthday-gacha/expo-push";
 
 // 웹 푸시. 휴대폰은 사이트를 홈 화면에 추가해야 받을 수 있다 (아이폰 iOS 16.4 이상).
 
@@ -45,10 +46,6 @@ export async function pushDeviceCount(kakaoId: string) {
 
 /** 그 사람이 마지막으로 접속한 기기 한 대로 보낸다. 만료된 구독은 지운다. 성공한 기기 수(0/1)를 돌려준다. */
 export async function sendPush(kakaoId: string, payload: PushPayload): Promise<number> {
-  if (!setup()) {
-    console.error("[push] VAPID 키가 없어 보낼 수 없어요");
-    return 0;
-  }
   const sql = getSql();
   const all = (await sql`
     select endpoint, p256dh, auth, last_seen_at, created_at from push_subscriptions where kakao_id = ${kakaoId}
@@ -63,6 +60,20 @@ export async function sendPush(kakaoId: string, payload: PushPayload): Promise<n
 
   // 마지막 접속 기기부터 시도하고, 구독이 만료됐으면 지우고 그다음 기기로 넘어간다
   for (const s of ordered) {
+    // 우끼끼 앱(안드로이드)은 Expo 푸시로
+    if (isExpoEndpoint(s.endpoint)) {
+      const r = await sendExpoPush(expoTokenOf(s.endpoint), payload);
+      if (r === "ok") return 1;
+      if (r === "gone") {
+        await sql`delete from push_subscriptions where endpoint = ${s.endpoint}`;
+        continue;
+      }
+      return 0;
+    }
+    if (!setup()) {
+      console.error("[push] VAPID 키가 없어 웹 푸시를 보낼 수 없어요");
+      return 0;
+    }
     try {
       await sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },

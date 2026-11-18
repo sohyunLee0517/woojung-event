@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { isIos, isStandalone } from "./InstallCard";
+import { appInfo } from "@/lib/app-bridge";
 
 const SW_URL = "/birthday-gacha-sw.js";
 const SW_SCOPE = "/birthday-gacha/";
@@ -12,7 +13,8 @@ type Status =
   | "need_install" // 아이폰: 홈 화면에 추가해야 받을 수 있음
   | "denied" // 알림을 차단함
   | "off"
-  | "on";
+  | "on"
+  | "app_off"; // 앱 안인데 알림 권한이 꺼져 있음
 
 function urlBase64ToUint8Array(base64: string) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -38,6 +40,18 @@ export default function PushCard({
   const [busy, setBusy] = useState(false);
 
   const check = useCallback(async () => {
+    // 우끼끼 앱 안: 앱 푸시 토큰을 등록(=마지막 접속 기기로 갱신)
+    const app = appInfo();
+    if (app) {
+      if (!app.pushToken) return setStatus("app_off");
+      const res = await fetch("/api/birthday-gacha/push/app", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: app.pushToken }),
+      }).catch(() => null);
+      setStatus(res?.ok ? "on" : "app_off");
+      return;
+    }
     const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     if (!supported) {
       setStatus(isIos() && !isStandalone() ? "need_install" : "unsupported");
@@ -126,6 +140,7 @@ export default function PushCard({
     need_install: "아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요",
     denied: "알림이 차단돼 있어요. 설정에서 허용해 주세요",
     unsupported: "이 브라우저는 알림을 받을 수 없어요",
+    app_off: "휴대폰 설정 → 앱 → 우끼끼 → 알림을 켜 주세요",
   };
 
   return (

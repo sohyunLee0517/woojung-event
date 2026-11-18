@@ -52,6 +52,11 @@ function secondsAgo(iso: string) {
 }
 
 export default function MapView({ roomCode, backHref, backLabel }: { roomCode: string; backHref: string; backLabel: string }) {
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInApp(!!(window as unknown as { ReactNativeWebView?: unknown }).ReactNativeWebView);
+  }, []);
   const mapDivRef = useRef<HTMLDivElement>(null);
   const leafletRef = useRef<typeof Leaflet | null>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
@@ -237,7 +242,8 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
     <div style={{ position: "absolute", inset: 0, color: "#fff", fontFamily: "sans-serif" }}>
       <div ref={mapDivRef} style={{ position: "absolute", inset: 0 }} />
 
-      {/* 웹은 화면을 켜 둔 동안만 위치가 잡힌다 → 앱 안내 */}
+      {/* 웹은 화면을 켜 둔 동안만 위치가 잡힌다 → 앱 안내 (앱 안에서는 숨김) */}
+      {!inApp && (
       <div
         style={{
           position: "absolute",
@@ -264,6 +270,7 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
           <span style={{ fontWeight: 700, opacity: 0.7, whiteSpace: "nowrap" }}>앱 준비 중</span>
         )}
       </div>
+      )}
 
       <div
         style={{

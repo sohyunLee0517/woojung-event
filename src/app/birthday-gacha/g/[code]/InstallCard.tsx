@@ -47,7 +47,8 @@ export default function InstallCard({
 
   useEffect(() => {
     const update = () => {
-      if (isStandalone()) setMode("hidden");
+      // 우끼끼 앱 안이거나 이미 홈 화면 앱이면 안내 안 함
+      if (isStandalone() || (window as unknown as { ReactNativeWebView?: unknown }).ReactNativeWebView) setMode("hidden");
       else if (deferred) setMode("prompt");
       else if (isIos()) setMode("ios");
       else setMode("manual");
