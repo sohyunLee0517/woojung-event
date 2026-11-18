@@ -42,6 +42,7 @@ const DRAW_ERRORS: Record<string, string> = {
   empty: "캡슐이 다 떨어졌어요.",
   not_member: "이 방에 참가하지 않았어요.",
   busy: "동시에 눌렸어요. 다시 눌러 주세요.",
+  need_players: "친구가 들어와야 뽑을 수 있어요 (2명부터).",
 };
 
 function Avatar({ src, size = 36, online }: { src: string | null; size?: number; online?: boolean }) {
@@ -798,15 +799,17 @@ export default function GameView({ code }: { code: string }) {
             {me && (
               <button
                 onClick={draw}
-                disabled={phase !== "idle" || me.tickets <= 0 || state.remainingCapsules <= 0}
+                disabled={phase !== "idle" || me.tickets <= 0 || state.remainingCapsules <= 0 || state.players.length < 2}
                 style={{
                   ...primaryButton,
-                  opacity: phase !== "idle" || me.tickets <= 0 || state.remainingCapsules <= 0 ? 0.4 : 1,
+                  opacity: phase !== "idle" || me.tickets <= 0 || state.remainingCapsules <= 0 || state.players.length < 2 ? 0.4 : 1,
                 }}
               >
                 {phase === "spinning"
                   ? "두근두근…"
-                  : state.remainingCapsules <= 0
+                  : state.players.length < 2
+                    ? "친구가 들어와야 뽑을 수 있어요 (2명부터)"
+                    : state.remainingCapsules <= 0
                     ? "캡슐이 다 떨어졌어요"
                     : me.tickets <= 0
                       ? "뽑기권이 없어요"

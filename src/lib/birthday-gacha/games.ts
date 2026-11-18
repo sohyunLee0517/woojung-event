@@ -233,7 +233,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
 
 export type DrawResult =
   | { ok: true; capsule: { grade: Grade; amount: number; minutes: number } }
-  | { ok: false; reason: "no_ticket" | "empty" | "not_member" | "busy" };
+  | { ok: false; reason: "no_ticket" | "empty" | "not_member" | "busy" | "need_players" };
 
 /**
  * 뽑기권 1장을 쓰고 남은 캡슐 중 다음 것을 연다.
@@ -250,7 +250,7 @@ export async function drawCapsule(code: string, kakaoId: string): Promise<DrawRe
   if (r && !r.out_reason && r.out_grade) {
     return { ok: true, capsule: { grade: r.out_grade, amount: Number(r.out_amount), minutes: Number(r.out_minutes) } };
   }
-  const reason = (r?.out_reason ?? "busy") as "no_ticket" | "empty" | "not_member" | "busy";
+  const reason = (r?.out_reason ?? "busy") as "no_ticket" | "empty" | "not_member" | "busy" | "need_players";
   return { ok: false, reason };
 }
 

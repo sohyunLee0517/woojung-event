@@ -140,10 +140,29 @@ describe.skipIf(!EMU)("빵빠레 보안 규칙", () => {
   });
 
   describe("호스트 조작", () => {
-    it("게임 시작은 호스트만", async () => {
-      const start = { status: "PLAYING", temperature: 0, updatedAt: 1, startedAt: 1, celebratedAt: null };
+    const start = { status: "PLAYING", temperature: 0, updatedAt: 1, startedAt: 1, celebratedAt: null };
+    const ready = async (opts: { camera: boolean; players: boolean }) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const d = ctx.database();
+        await set(ref(d, `${G}/host`), opts.camera ? { kakaoId: HOST, epoch: 1, online: true } : null);
+        await set(ref(d, `${G}/players`), opts.players ? { [A]: { name: "A", image: null, joinedAt: 1 } } : null);
+      });
+    };
+
+    it("게임 시작은 호스트만 (카메라 켜짐 + 친구 1명 이상)", async () => {
+      await ready({ camera: true, players: true });
       await assertFails(set(ref(db(A), `${G}/state`), start));
       await assertSucceeds(set(ref(db(HOST), `${G}/state`), start));
+    });
+
+    it("카메라가 꺼져 있으면 호스트도 시작할 수 없다", async () => {
+      await ready({ camera: false, players: true });
+      await assertFails(set(ref(db(HOST), `${G}/state`), start));
+    });
+
+    it("친구가 한 명도 없으면(혼자면) 시작할 수 없다", async () => {
+      await ready({ camera: true, players: false });
+      await assertFails(set(ref(db(HOST), `${G}/state`), start));
     });
 
     it("호스트도 온도를 마음대로 정할 수는 없다", async () => {
@@ -164,6 +183,7 @@ describe.skipIf(!EMU)("빵빠레 보안 규칙", () => {
 
     it("이미 시작한 게임을 다시 시작할 수 없다", async () => {
       await seed(playing);
+      await ready({ camera: true, players: true });
       await assertFails(set(ref(db(HOST), `${G}/state`), { status: "PLAYING", temperature: 0, updatedAt: 9, startedAt: 9 }));
     });
 

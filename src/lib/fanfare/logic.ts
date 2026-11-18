@@ -89,3 +89,10 @@ export function hostEndAction(phase: FanfarePhase): { outcome: FanfareOutcome; l
   if (phase === "REVEAL") return { outcome: "completed", label: "빵빠레 끝내기" };
   return { outcome: "aborted", label: "중단하기" };
 }
+
+/** 시작 조건: 호스트 카메라가 켜져 있고, 호스트 말고 친구가 1명 이상 (모두 2명 이상) */
+export function canStartFanfare(input: { cameraOn: boolean; playerCount: number }): { ok: boolean; reason: string | null } {
+  if (!input.cameraOn) return { ok: false, reason: "카메라를 먼저 켜 주세요" };
+  if (input.playerCount < 1) return { ok: false, reason: "친구가 1명 이상 들어와야 해요 (2명부터)" };
+  return { ok: true, reason: null };
+}

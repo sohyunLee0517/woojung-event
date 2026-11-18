@@ -157,6 +157,12 @@ begin
     return;
   end if;
 
+  -- 모든 게임은 2명 이상부터
+  if (select count(*) from game_players gp where gp.game_code = p_code) < 2 then
+    return query select null::text, null::int, null::int, 'need_players'::text;
+    return;
+  end if;
+
   select count(*) into v_drawn from capsules c where c.game_code = p_code and c.drawn_by = p_kakao;
   if v_drawn >= p_max then
     return query select null::text, null::int, null::int, 'no_ticket'::text;

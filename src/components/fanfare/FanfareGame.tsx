@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import TemperatureGauge from "@/components/TemperatureGauge";
 import { getAudioContext, playFanfare, playTudum, resumeAudio } from "@/lib/sounds";
 import {
+  canStartFanfare,
   derivePhase,
   effectiveTemperature,
   hostEndAction,
@@ -85,6 +86,7 @@ export default function FanfareGame({
   const [now, setNow] = useState(() => Date.now());
   const [ready, setReady] = useState(false);
   const [connError, setConnError] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
@@ -112,10 +114,11 @@ export default function FanfareGame({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ devAs: devAs ?? undefined }),
       }).catch(() => null);
-      const data = res ? ((await res.json()) as { ok: boolean; token?: string }) : null;
+      const data = res ? ((await res.json().catch(() => null)) as { ok: boolean; token?: string; reason?: string } | null) : null;
       if (cancelled) return;
       if (!data?.ok || !data.token) {
-        setConnError(true);
+        if (data?.reason === "not_active") setEnded(true);
+        else setConnError(true);
         return;
       }
       try {
@@ -140,9 +143,16 @@ export default function FanfareGame({
         setState(s);
         setReady(true);
       },
-      (e) => {
-        console.error("[fanfare] 실시간 연결 실패", e);
-        setConnError(true);
+      async () => {
+        // 호스트가 끝내면 서버가 실시간 데이터를 지워서 권한이 사라진다 → 끝났는지 확인
+        const res = await fetch(`/api/ukiki/rooms/${roomCode}/fanfare/${gameId}/token`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ devAs: devAs ?? undefined }),
+        }).catch(() => null);
+        const data = res ? ((await res.json().catch(() => null)) as { reason?: string } | null) : null;
+        if (data?.reason === "not_active") setEnded(true);
+        else setConnError(true);
       },
     );
     const u2 = watchPlayers(gameId, setPlayers);
@@ -303,6 +313,19 @@ export default function FanfareGame({
   const hostOnline = !!host?.online;
 
   // ── 화면 ──
+  if (ended) {
+    return (
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "#fff", padding: 24, textAlign: "center" }}>
+        <p style={{ fontSize: 40 }}>🏁</p>
+        <p style={{ fontWeight: 800 }}>빵빠레가 끝났어요</p>
+        <p style={{ fontSize: 13, opacity: 0.6 }}>결과는 방의 &apos;지난 게임&apos;에서 볼 수 있어요</p>
+        <a href={`/r/${roomCode}`} style={{ ...primaryButton, textDecoration: "none" }}>
+          방으로 돌아가기
+        </a>
+      </div>
+    );
+  }
+
   if (connError) {
     return (
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "#fff", padding: 24, textAlign: "center" }}>
@@ -454,15 +477,22 @@ export default function FanfareGame({
           </section>
 
           <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {phase === "WAITING" && (
-              <button
-                onClick={() => hostStart(gameId)}
-                disabled={playerList.length === 0}
-                style={{ ...primaryButton, opacity: playerList.length === 0 ? 0.5 : 1 }}
-              >
-                🎮 게임 시작 ({playerList.length}명)
-              </button>
-            )}
+            {phase === "WAITING" &&
+              (() => {
+                const check = canStartFanfare({ cameraOn, playerCount: playerList.length });
+                return (
+                  <>
+                    <button
+                      onClick={() => hostStart(gameId)}
+                      disabled={!check.ok}
+                      style={{ ...primaryButton, opacity: check.ok ? 1 : 0.5 }}
+                    >
+                      🎮 게임 시작 (나 + 친구 {playerList.length}명)
+                    </button>
+                    {check.reason && <p style={{ fontSize: 13, color: UK.yellow, textAlign: "center" }}>{check.reason}</p>}
+                  </>
+                );
+              })()}
             {(() => {
               const action = hostEndAction(phase);
               const danger = action.outcome === "aborted";

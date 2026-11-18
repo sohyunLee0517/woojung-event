@@ -8,6 +8,7 @@ import {
   applyTap,
   derivePhase,
   effectiveTemperature,
+  canStartFanfare,
   hostEndAction,
   initialState,
   startState,
@@ -145,5 +146,19 @@ describe("tapRanking (탭 순위)", () => {
     expect(r).toHaveLength(10);
     expect(r[0].id).toBe("p9");
     expect(r[9].medal).toBe("");
+  });
+});
+
+describe("canStartFanfare (시작 조건: 카메라 + 2명 이상)", () => {
+  it("카메라가 꺼져 있으면 시작할 수 없다", () => {
+    expect(canStartFanfare({ cameraOn: false, playerCount: 3 })).toEqual({ ok: false, reason: "카메라를 먼저 켜 주세요" });
+  });
+
+  it("호스트 혼자면(친구 0명) 시작할 수 없다", () => {
+    expect(canStartFanfare({ cameraOn: true, playerCount: 0 })).toEqual({ ok: false, reason: "친구가 1명 이상 들어와야 해요 (2명부터)" });
+  });
+
+  it("카메라 켜고 친구 1명 이상이면 시작", () => {
+    expect(canStartFanfare({ cameraOn: true, playerCount: 1 })).toEqual({ ok: true, reason: null });
   });
 });

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomDetail } from "@/lib/ukiki/rooms";
 import type { ActiveFanfare } from "@/lib/ukiki/rules";
 import PastGames from "./PastGames";
+import { MIN_PLAYERS, joinedMembers, roomSections } from "@/lib/ukiki/room-view";
 import { fixedColumnStyle, fixedPageStyle, GAME_META, ghostButton, primaryButton, scrollAreaStyle, UK } from "./styles";
 import TopBar from "./TopBar";
 
@@ -65,12 +66,25 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     }
   };
 
+  const [welcome, setWelcome] = useState<string | null>(null);
+  const memberIdsRef = useRef<string[] | null>(initial.members.map((m) => m.kakaoId));
+
   const load = useCallback(async () => {
     const res = await fetch(`/api/ukiki/rooms/${initial.code}`, { cache: "no-store" }).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { ok: boolean; room: RoomDetail };
-    if (data.ok) setRoom(data.room);
-  }, [initial.code]);
+    if (!data.ok) return;
+    // 새로 들어온 친구가 있으면 반겨 준다
+    const joined = joinedMembers(memberIdsRef.current, data.room.members).filter((m) => m.kakaoId !== me);
+    memberIdsRef.current = data.room.members.map((m) => m.kakaoId);
+    setRoom(data.room);
+    if (joined.length > 0) {
+      setWelcome(`${joined.map((m) => m.nickname ?? "친구").join(", ")}님이 들어왔어요!`);
+      setTimeout(() => setWelcome(null), 3000);
+      const confetti = (await import("canvas-confetti")).default;
+      confetti({ particleCount: 90, spread: 80, origin: { y: 0.4 }, zIndex: 70 });
+    }
+  }, [initial.code, me]);
 
   useEffect(() => {
     const t = setInterval(load, POLL_MS);
@@ -119,12 +133,40 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     }
   };
 
+  const sections = roomSections({ memberCount: room.members.length });
   const fanfare = room.games.find((g) => g.type === "fanfare");
   const gachas = room.games.filter((g) => g.type === "gacha");
   const onlineCount = room.members.filter((m) => m.online).length;
 
   return (
     <main style={fixedPageStyle}>
+      <style>{`
+        @keyframes uk-ping { 0% { transform: scale(1); opacity: .8 } 100% { transform: scale(1.6); opacity: 0 } }
+        @keyframes uk-heart { 0%,100% { transform: scale(1) } 50% { transform: scale(1.25) } }
+        @keyframes uk-dots { to { width: 1.2em } }
+        @keyframes uk-pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.85) } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1) } 85% { opacity: 1 } 100% { opacity: 0 } }
+      `}</style>
+      {welcome && (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: "45%",
+            zIndex: 80,
+            padding: "18px 22px",
+            borderRadius: 18,
+            background: "rgba(20,20,20,.94)",
+            border: "1px solid rgba(254,229,0,.5)",
+            textAlign: "center",
+            animation: "uk-pop 3s ease forwards",
+            pointerEvents: "none",
+          }}
+        >
+          <p style={{ fontSize: 32 }}>🎉</p>
+          <p style={{ fontSize: 16, fontWeight: 800 }}>{welcome}</p>
+          <p style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>이제 같이 게임할 수 있어요</p>
+        </div>
+      )}
       <div style={fixedColumnStyle}>
         <TopBar
           backHref="/"
@@ -136,9 +178,11 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           }
           right={
             <>
-              <Link href={`/r/${room.code}/map`} aria-label="방 지도" title="방 지도" style={{ ...ghostButton, padding: "8px 12px" }}>
-                🗺️
-              </Link>
+              {sections.games && (
+                <Link href={`/r/${room.code}/map`} aria-label="방 지도" title="방 지도" style={{ ...ghostButton, padding: "8px 12px" }}>
+                  🗺️
+                </Link>
+              )}
               <div style={{ position: "relative" }}>
                 <button onClick={() => setMenuOpen((v) => !v)} aria-label="방 메뉴" style={{ ...ghostButton, padding: "8px 12px" }}>
                   ⋯
@@ -177,6 +221,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           }
         />
 
+        {sections.games && (
         <section style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           {room.members.map((m) => (
             <span key={m.kakaoId} title={m.nickname ?? ""} style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -187,6 +232,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             {onlineCount}명 접속 · 멤버 {room.members.length}
           </span>
         </section>
+        )}
 
         <div style={{ ...scrollAreaStyle, gap: 18 }}>
         {notice && (
@@ -195,6 +241,63 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           </p>
         )}
 
+        {sections.invite && (
+          <div style={{ flex: 1, minHeight: "70%", display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: 40 }}>
+          <section
+            style={{
+              width: "100%",
+              padding: "28px 20px 20px",
+              borderRadius: 20,
+              background: "linear-gradient(160deg, rgba(254,229,0,.14), rgba(255,255,255,.03))",
+              border: "1px solid rgba(254,229,0,.3)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 14,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              {(() => {
+                const self = room.members.find((m) => m.kakaoId === me);
+                return <Avatar src={self?.image ?? null} online size={64} />;
+              })()}
+              <span style={{ fontSize: 22, opacity: 0.6, animation: "uk-heart 1.2s ease-in-out infinite" }}>💛</span>
+              <span
+                style={{
+                  position: "relative",
+                  width: 64,
+                  height: 64,
+                  borderRadius: "50%",
+                  border: "2px dashed rgba(254,229,0,.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 26,
+                  color: UK.yellow,
+                }}
+              >
+                <span style={{ position: "absolute", inset: -2, borderRadius: "50%", border: "2px solid rgba(254,229,0,.6)", animation: "uk-ping 1.6s ease-out infinite" }} />
+                ?
+              </span>
+            </div>
+            <p style={{ fontSize: 17, fontWeight: 800 }}>
+              친구를 기다리는 중
+              <span style={{ display: "inline-block", width: 18, textAlign: "left" }}>
+                <span style={{ animation: "uk-dots 1.4s steps(4, end) infinite", display: "inline-block", overflow: "hidden", verticalAlign: "bottom", width: 0 }}>…</span>
+              </span>
+            </p>
+            <p style={{ fontSize: 13, opacity: 0.7 }}>모든 게임은 {MIN_PLAYERS}명부터 할 수 있어요. 친구가 들어오면 바로 알려 줄게요.</p>
+            <button onClick={invite} style={{ ...primaryButton, width: "100%" }}>
+              💌 친구 부르기
+            </button>
+            {room.visibility === "private" && <p style={{ fontSize: 12, opacity: 0.6 }}>🔒 비밀방이라 비밀번호도 함께 알려 주세요</p>}
+          </section>
+          </div>
+        )}
+
+        {sections.games && (
+          <>
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800 }}>🔥 진행 중</h2>
           {!fanfare && gachas.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 열린 게임이 없어요. 아래에서 하나 열어 보세요!</p>}
@@ -242,6 +345,8 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           </button>
         </section>
 
+          </>
+        )}
         <PastGames code={room.code} />
         </div>
       </div>
