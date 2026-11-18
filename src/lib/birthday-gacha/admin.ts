@@ -1,4 +1,5 @@
 import { ONLINE_WITHIN_S } from "@/lib/birthday-gacha/rules";
+import { pickTargetSubscription } from "@/lib/birthday-gacha/push-target";
 
 // 관리자 판별과 알림 현황 계산. DB 없이 테스트할 수 있게 순수 함수로 둔다.
 
@@ -43,6 +44,8 @@ export type PlayerStatusRow = {
   devices: number;
   deviceLabels: string[];
   pushOn: boolean;
+  /** 알림이 실제로 가는 기기 (마지막으로 접속한 기기) */
+  targetDevice: string | null;
   lastNotifiedAt: string | null;
   notifiedThisWindow: boolean;
   answeredThisWindow: boolean;
@@ -51,7 +54,7 @@ export type PlayerStatusRow = {
 
 export function buildPlayerStatus(input: {
   players: { kakaoId: string; nickname: string | null; lastSeenAt: string | null }[];
-  subscriptions: { kakaoId: string; userAgent: string | null }[];
+  subscriptions: { kakaoId: string; endpoint: string; userAgent: string | null; lastSeenAt: string; createdAt: string }[];
   notifications: { kakaoId: string; windowStart: string; sentAt: string }[];
   answeredThisWindow: Set<string>;
   windowStart: string;
@@ -82,6 +85,7 @@ export function buildPlayerStatus(input: {
       devices: subs.length,
       deviceLabels: subs.map((s) => deviceLabel(s.userAgent)),
       pushOn,
+      targetDevice: pushOn ? deviceLabel(pickTargetSubscription(subs)?.userAgent) : null,
       lastNotifiedAt: mine[0]?.sentAt ?? null,
       notifiedThisWindow,
       answeredThisWindow: answered,

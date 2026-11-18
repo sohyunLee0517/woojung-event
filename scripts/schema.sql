@@ -90,3 +90,6 @@ create table if not exists push_notifications (
   sent_at      timestamptz not null default now(),
   primary key (kakao_id, window_start)
 );
+
+-- 알림은 마지막으로 접속한 기기 한 대에만 보낸다. 방 화면을 열 때마다 갱신된다.
+alter table push_subscriptions add column if not exists last_seen_at timestamptz not null default now();

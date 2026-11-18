@@ -51,7 +51,7 @@ function secondsAgo(iso: string) {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
 }
 
-export default function MapView() {
+export default function MapView({ backHref, backLabel }: { backHref: string; backLabel: string }) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const leafletRef = useRef<typeof Leaflet | null>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
@@ -251,10 +251,10 @@ export default function MapView() {
         }}
       >
         <Link
-          href="/birthday-gacha"
+          href={backHref}
           style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(0,0,0,.75)", color: "#fff" }}
         >
-          ← 돌아가기
+          {backLabel}
         </Link>
         <button
           onClick={stopSharing}

@@ -63,9 +63,27 @@ describe("buildPlayerStatus", () => {
     { kakaoId: "c", nickname: "친구", lastSeenAt: null },
   ];
   const subscriptions = [
-    { kakaoId: "a", userAgent: "Mozilla/5.0 (Linux; Android 14) Chrome/131 Mobile" },
-    { kakaoId: "a", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131" },
-    { kakaoId: "b", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)" },
+    {
+      kakaoId: "a",
+      endpoint: "a-phone",
+      userAgent: "Mozilla/5.0 (Linux; Android 14) Chrome/131 Mobile",
+      lastSeenAt: "2026-11-18T05:10:00.000Z",
+      createdAt: "2026-11-10T00:00:00.000Z",
+    },
+    {
+      kakaoId: "a",
+      endpoint: "a-pc",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131",
+      lastSeenAt: "2026-11-18T05:20:00.000Z",
+      createdAt: "2026-11-01T00:00:00.000Z",
+    },
+    {
+      kakaoId: "b",
+      endpoint: "b-phone",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)",
+      lastSeenAt: "2026-11-18T03:00:00.000Z",
+      createdAt: "2026-11-01T00:00:00.000Z",
+    },
   ];
   const notifications = [
     { kakaoId: "a", windowStart, sentAt: "2026-11-18T05:00:30.000Z" },
@@ -86,6 +104,13 @@ describe("buildPlayerStatus", () => {
     const rows = build("2026-11-18T05:30:00.000Z");
     expect(rows.find((r) => r.kakaoId === "a")).toMatchObject({ devices: 2, deviceLabels: ["안드로이드", "PC"], pushOn: true });
     expect(rows.find((r) => r.kakaoId === "c")).toMatchObject({ devices: 0, deviceLabels: [], pushOn: false });
+  });
+
+  it("알림은 마지막으로 접속한 기기 한 대로 간다고 표시한다", () => {
+    const rows = build("2026-11-18T05:30:00.000Z");
+    expect(rows.find((r) => r.kakaoId === "a")?.targetDevice).toBe("PC");
+    expect(rows.find((r) => r.kakaoId === "b")?.targetDevice).toBe("아이폰");
+    expect(rows.find((r) => r.kakaoId === "c")?.targetDevice).toBeNull();
   });
 
   it("마지막 알림 시각과 이번 구간 알림 여부를 알려 준다", () => {

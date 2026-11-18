@@ -46,12 +46,26 @@ export default function PushCard({
     if (isIos() && !isStandalone()) return setStatus("need_install");
     if (Notification.permission === "denied") return setStatus("denied");
     const sub = await currentSubscription().catch(() => null);
-    setStatus(sub && Notification.permission === "granted" ? "on" : "off");
+    const on = !!sub && Notification.permission === "granted";
+    setStatus(on ? "on" : "off");
+    // 이 기기를 '마지막 접속 기기'로 알려서 알림이 여기로 오게 한다
+    if (on && sub) {
+      fetch("/api/birthday-gacha/push/subscribe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(sub.toJSON()),
+      }).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
-    // 화면이 뜬 뒤 브라우저 상태를 읽는다
+    // 화면이 뜰 때, 그리고 다른 앱에 갔다가 돌아올 때마다 확인한다
     check();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [check]);
 
   const enable = async () => {
@@ -107,7 +121,7 @@ export default function PushCard({
   if (status === "checking") return null;
 
   const text: Record<Exclude<Status, "checking">, string> = {
-    on: "퀴즈가 열리면 이 기기로 알림이 와요",
+    on: "퀴즈 알림이 이 기기로 와요 (마지막 접속 기기)",
     off: "퀴즈가 열릴 때 알림 받기",
     need_install: "아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요",
     denied: "알림이 차단돼 있어요. 설정에서 허용해 주세요",

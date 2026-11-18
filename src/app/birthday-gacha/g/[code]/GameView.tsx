@@ -20,6 +20,7 @@ import {
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 import InstallCard from "./InstallCard";
 import PushCard from "./PushCard";
+import { mapHref } from "@/lib/birthday-gacha/nav";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
 // 화면 가운데에 잠깐 떴다 사라지는 알림
@@ -701,7 +702,7 @@ export default function GameView({ code }: { code: string }) {
               </span>
             )}
           </button>
-          <Link href="/birthday-gacha/map" aria-label="지도" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Link href={mapHref(`/birthday-gacha/g/${code}`)} aria-label="지도" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
             🗺️
           </Link>
         </header>

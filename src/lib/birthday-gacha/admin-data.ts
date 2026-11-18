@@ -21,8 +21,8 @@ export async function getAdminOverview(now = Date.now()) {
   const ids = players.map((p) => p.kakao_id);
 
   const subs = (await sql`
-    select kakao_id, user_agent from push_subscriptions where kakao_id = any(${ids})
-  `) as { kakao_id: string; user_agent: string | null }[];
+    select kakao_id, endpoint, user_agent, last_seen_at, created_at from push_subscriptions where kakao_id = any(${ids})
+  `) as { kakao_id: string; endpoint: string; user_agent: string | null; last_seen_at: string; created_at: string }[];
   const notifications = (await sql`
     select kakao_id, window_start, sent_at from push_notifications
     where kakao_id = any(${ids}) and sent_at > now() - interval '7 days'
@@ -35,7 +35,13 @@ export async function getAdminOverview(now = Date.now()) {
   const iso = (v: string | null) => (v ? new Date(v).toISOString() : null);
   const rows = buildPlayerStatus({
     players: players.map((p) => ({ kakaoId: p.kakao_id, nickname: p.nickname, lastSeenAt: iso(p.last_seen_at) })),
-    subscriptions: subs.map((s) => ({ kakaoId: s.kakao_id, userAgent: s.user_agent })),
+    subscriptions: subs.map((s) => ({
+      kakaoId: s.kakao_id,
+      endpoint: s.endpoint,
+      userAgent: s.user_agent,
+      lastSeenAt: new Date(s.last_seen_at).toISOString(),
+      createdAt: new Date(s.created_at).toISOString(),
+    })),
     notifications: notifications.map((n) => ({
       kakaoId: n.kakao_id,
       windowStart: new Date(n.window_start).toISOString(),

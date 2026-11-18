@@ -126,7 +126,9 @@ export default async function AdminPage() {
                 {r.warning && <span style={{ color: "#f97316", fontWeight: 700 }}>⚠️ {r.warning}</span>}
               </div>
               <p style={{ opacity: 0.85 }}>
-                {r.pushOn ? `🔔 기기 ${r.devices}대 (${r.deviceLabels.join(", ")})` : "🔕 알림 안 켬"}
+                {r.pushOn
+                  ? `🔔 알림 받는 기기: ${r.targetDevice} (마지막 접속) · 등록 ${r.devices}대`
+                  : "🔕 알림 안 켬"}
               </p>
               <p style={{ opacity: 0.85 }}>
                 마지막 퀴즈 알림 {clock(r.lastNotifiedAt)} · 이번 구간 {r.notifiedThisWindow ? "보냄" : "안 보냄"}
