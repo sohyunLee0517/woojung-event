@@ -1,6 +1,8 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { createFirebaseCustomToken } from "@/lib/firebase-token";
 import { getDatabase } from "firebase-admin/database";
+import { getMessaging } from "firebase-admin/messaging";
+import type { FcmMessage } from "@/lib/birthday-gacha/fcm-push";
 
 // 서버 전용 Firebase 관리자. FIREBASE_SERVICE_ACCOUNT 에 서비스 계정 JSON(그대로 또는 base64)을 넣는다.
 function serviceAccount() {
@@ -48,4 +50,12 @@ export async function clearFanfareRealtime(gameId: number) {
   const a = adminApp();
   if (!a) return;
   await getDatabase(a).ref(`ukiki/fanfare/${gameId}`).remove();
+}
+
+/** 앱 푸시 보내는 함수 (관리자 키가 없으면 null) */
+export function fcmSender(): ((m: FcmMessage) => Promise<string>) | null {
+  const a = adminApp();
+  if (!a) return null;
+  const messaging = getMessaging(a);
+  return (m) => messaging.send(m);
 }

@@ -1,7 +1,7 @@
 import { sendNotification, setVapidDetails } from "web-push";
 import { getSql } from "@/lib/db";
 import { orderByRecency } from "@/lib/birthday-gacha/push-target";
-import { expoTokenOf, isExpoEndpoint, sendExpoPush } from "@/lib/birthday-gacha/expo-push";
+import { fcmTokenOf, isFcmEndpoint, sendFcmPush } from "@/lib/birthday-gacha/fcm-push";
 
 // 웹 푸시. 휴대폰은 사이트를 홈 화면에 추가해야 받을 수 있다 (아이폰 iOS 16.4 이상).
 
@@ -60,9 +60,9 @@ export async function sendPush(kakaoId: string, payload: PushPayload): Promise<n
 
   // 마지막 접속 기기부터 시도하고, 구독이 만료됐으면 지우고 그다음 기기로 넘어간다
   for (const s of ordered) {
-    // 우끼끼 앱(안드로이드)은 Expo 푸시로
-    if (isExpoEndpoint(s.endpoint)) {
-      const r = await sendExpoPush(expoTokenOf(s.endpoint), payload);
+    // 우끼끼 앱(안드로이드)은 Firebase(FCM)로 바로
+    if (isFcmEndpoint(s.endpoint)) {
+      const r = await sendFcmPush(fcmTokenOf(s.endpoint), payload);
       if (r === "ok") return 1;
       if (r === "gone") {
         await sql`delete from push_subscriptions where endpoint = ${s.endpoint}`;
