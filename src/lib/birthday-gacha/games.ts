@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { getQuizStatus, type QuizStatus } from "@/lib/birthday-gacha/quiz";
+import { pushDeviceCount } from "@/lib/birthday-gacha/push";
 import {
   CAPSULE_SET,
   MAX_DRAWS_PER_PLAYER,
@@ -119,6 +120,8 @@ export type GameState = {
   quiz: QuizStatus | null;
   /** 남은 시간 계산용 서버 시각 */
   serverNow: string;
+  /** 푸시 알림을 등록한 내 기기 수 */
+  pushDevices: number;
 };
 
 /** 화면에 내려줄 방 상태. 뽑히지 않은 캡슐의 내용은 포함하지 않는다. */
@@ -213,6 +216,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
     })),
     quiz: await getQuizStatus(code, me),
     serverNow: new Date().toISOString(),
+    pushDevices: await pushDeviceCount(me),
   };
 }
 

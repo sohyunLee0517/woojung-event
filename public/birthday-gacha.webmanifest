@@ -1,0 +1,13 @@
+{
+  "name": "생일 가챠",
+  "short_name": "생일 가챠",
+  "start_url": "/birthday-gacha",
+  "scope": "/birthday-gacha",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "/api/birthday-gacha/icon/192", "sizes": "192x192", "type": "image/png" },
+    { "src": "/api/birthday-gacha/icon/512", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -18,6 +18,8 @@ import {
   type Grade,
 } from "@/lib/birthday-gacha/rules";
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
+import InstallCard from "./InstallCard";
+import PushCard from "./PushCard";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
 // 화면 가운데에 잠깐 떴다 사라지는 알림
@@ -331,6 +333,18 @@ function RevealOverlay({ result, onClose }: { result: DrawnResult; onClose: () =
 }
 
 const capsuleHalf: CSSProperties = { position: "absolute", left: 0, width: 160, height: 80 };
+
+const smallButton: CSSProperties = {
+  padding: "7px 12px",
+  borderRadius: 10,
+  border: "none",
+  background: "rgba(255,255,255,.14)",
+  color: "#fff",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
 
 const primaryButton: CSSProperties = {
   padding: "16px 24px",
@@ -742,6 +756,10 @@ export default function GameView({ code }: { code: string }) {
 
         {/* 뽑기권 퀴즈 */}
         {me && state?.quiz && <QuizCard quiz={state.quiz} now={now + clockOffset} onOpen={openQuiz} />}
+
+        {/* 푸시 알림 */}
+        {me && <InstallCard onNotice={notify} buttonStyle={smallButton} />}
+        {me && <PushCard code={code} onNotice={notify} buttonStyle={smallButton} />}
 
         {/* 내 특수카드 */}
         {me && state && state.myCards.length > 0 && (

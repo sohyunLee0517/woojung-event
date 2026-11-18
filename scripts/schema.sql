@@ -72,3 +72,21 @@ create table if not exists player_cards (
   acquired_at timestamptz not null default now(),
   used_at     timestamptz
 );
+
+-- 웹 푸시 구독. 기기(브라우저)마다 하나씩 생긴다.
+create table if not exists push_subscriptions (
+  endpoint   text        primary key,
+  kakao_id   text        not null references players(kakao_id) on delete cascade,
+  p256dh     text        not null,
+  auth       text        not null,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
+-- 2시간 구간마다 퀴즈 알림을 한 번만 보내기 위한 기록
+create table if not exists push_notifications (
+  kakao_id     text        not null references players(kakao_id) on delete cascade,
+  window_start timestamptz not null,
+  sent_at      timestamptz not null default now(),
+  primary key (kakao_id, window_start)
+);

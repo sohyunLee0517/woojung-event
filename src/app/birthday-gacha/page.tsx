@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { auth, signIn, signOut } from "@/auth";
 import { createGame, listMyGames, normalizeCode } from "@/lib/birthday-gacha/games";
 import { getPlayer, type Player } from "@/lib/players";
+import { adminIds, isAdmin } from "@/lib/birthday-gacha/admin";
 
 async function loadPlayer(kakaoId?: string): Promise<Player | null> {
   if (!kakaoId) return null;
@@ -178,6 +179,11 @@ export default async function Home({
               <Link href="/birthday-gacha/map" style={darkButton}>
                 🗺️ 지도
               </Link>
+              {isAdmin(user.id, adminIds()) && (
+                <Link href="/birthday-gacha/admin" style={darkButton}>
+                  🛠 관리자
+                </Link>
+              )}
               <form
                 action={async () => {
                   "use server";
