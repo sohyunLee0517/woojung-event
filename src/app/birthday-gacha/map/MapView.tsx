@@ -237,6 +237,34 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
     <div style={{ position: "absolute", inset: 0, color: "#fff", fontFamily: "sans-serif" }}>
       <div ref={mapDivRef} style={{ position: "absolute", inset: 0 }} />
 
+      {/* 웹은 화면을 켜 둔 동안만 위치가 잡힌다 → 앱 안내 */}
+      <div
+        style={{
+          position: "absolute",
+          top: 60,
+          left: 12,
+          right: 12,
+          zIndex: 1000,
+          padding: "8px 12px",
+          borderRadius: 10,
+          background: "rgba(254,229,0,.92)",
+          color: "#191919",
+          fontSize: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <span style={{ flex: 1 }}>📍 더 정확한 위치(화면을 꺼도 공유)는 우끼끼 앱에서 이용해 주세요</span>
+        {process.env.NEXT_PUBLIC_ANDROID_APP_URL ? (
+          <a href={process.env.NEXT_PUBLIC_ANDROID_APP_URL} style={{ fontWeight: 800, color: "#191919", whiteSpace: "nowrap" }}>
+            앱 받기 →
+          </a>
+        ) : (
+          <span style={{ fontWeight: 700, opacity: 0.7, whiteSpace: "nowrap" }}>앱 준비 중</span>
+        )}
+      </div>
+
       <div
         style={{
           position: "absolute",

@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getDatabase } from "firebase/database";
+import { getAuth, inMemoryPersistence, initializeAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,5 +12,18 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const isNew = getApps().length === 0;
+const app = isNew ? initializeApp(firebaseConfig) : getApps()[0];
 export const db = getDatabase(app);
+
+// 입장권(커스텀 토큰)은 화면마다 새로 받는다 → 탭끼리 로그인 상태를 공유하지 않게 메모리에만 둔다
+let authInstance: Auth | null = null;
+export function firebaseAuth(): Auth {
+  if (authInstance) return authInstance;
+  try {
+    authInstance = initializeAuth(app, { persistence: inMemoryPersistence });
+  } catch {
+    authInstance = getAuth(app); // 이미 초기화된 경우 (개발 중 새로고침)
+  }
+  return authInstance;
+}

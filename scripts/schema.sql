@@ -221,7 +221,7 @@ begin
     return;
   end if;
 
-  update uk_room_games g set status = 'ended', ended_at = now()
+  update uk_room_games g set status = 'ended', ended_at = now(), outcome = 'aborted'
   where g.room_code = p_code and g.game_type = 'fanfare' and g.status = 'active' and g.host_kakao_id = p_kakao;
 
   select m.kakao_id into v_next from uk_room_members m
@@ -241,3 +241,11 @@ begin
   return query select true, null::text, false;
 end;
 $$
+;
+
+-- 빵빠레 결과: 참여자별 탭 수
+alter table uk_game_participants add column if not exists taps integer
+;
+
+-- 빵빠레가 어떻게 끝났는지: completed(공개까지) / aborted(진행 중 중단) / cancelled(시작 전 닫기)
+alter table uk_room_games add column if not exists outcome text

@@ -267,11 +267,19 @@ export async function createFanfare(
   return fanfareCreateOutcome({ createdId, active: createdId === null ? await activeFanfare(code) : null });
 }
 
-/** 빵빠레 끝내기 (호스트만) */
-export async function endFanfare(code: string, id: number, me: string) {
+/**
+ * 빵빠레 끝내기 (호스트만).
+ *   completed: 공개까지 마침 · aborted: 진행 중 중단(기록에 '중단') · cancelled: 시작 전 닫기(기록 안 남음)
+ */
+export async function endFanfare(
+  code: string,
+  id: number,
+  me: string,
+  outcome: "completed" | "aborted" | "cancelled" = "completed",
+) {
   const sql = getSql();
   const rows = (await sql`
-    update uk_room_games set status = 'ended', ended_at = now()
+    update uk_room_games set status = 'ended', ended_at = now(), outcome = ${outcome}
     where id = ${id} and room_code = ${code} and game_type = 'fanfare' and status = 'active'
       and host_kakao_id = ${me}
     returning id
@@ -330,6 +338,10 @@ export type PastGame = {
   endedAt: string;
   participants: { kakaoId: string; nickname: string | null; image: string | null }[];
   gachaResult: GachaRank[] | null;
+  /** 완료 / 중단 (가챠는 항상 완료) */
+  outcome: "completed" | "aborted";
+  /** 빵빠레 탭 순위 (결과를 저장한 경우) */
+  fanfareResult: { kakaoId: string; nickname: string | null; taps: number; rank: number }[] | null;
 };
 
 /**
@@ -342,14 +354,14 @@ export async function listPastGames(code: string, me: string, offset = 0) {
   const sql = getSql();
   const rows = (await sql`
     with g as (
-      select g.id, g.game_type, g.host_kakao_id, g.ref_code, g.created_at,
+      select g.id, g.game_type, g.host_kakao_id, g.ref_code, g.created_at, g.outcome,
              case when g.game_type = 'gacha'
                   then (select max(c.drawn_at) from capsules c where c.game_code = g.ref_code)
                   else g.ended_at end as ended_at
       from uk_room_games g
       where g.room_code = ${code}
         and (
-          (g.game_type = 'fanfare' and g.status = 'ended')
+          (g.game_type = 'fanfare' and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
           or (g.game_type = 'gacha'
               and exists (select 1 from capsules c where c.game_code = g.ref_code)
               and not exists (select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null))
@@ -366,17 +378,18 @@ export async function listPastGames(code: string, me: string, offset = 0) {
     created_at: string;
     ended_at: string | null;
     host_name: string | null;
+    outcome: string | null;
   }[];
   const page = pageResult(rows, safeOffset);
   const ids = page.items.map((r) => Number(r.id));
   const gachaCodes = page.items.filter((r) => r.game_type === "gacha" && r.ref_code).map((r) => r.ref_code as string);
 
   const fanfareParts = (await sql`
-    select gp.game_id, gp.kakao_id, p.nickname, p.profile_image
+    select gp.game_id, gp.kakao_id, p.nickname, p.profile_image, gp.taps
     from uk_game_participants gp join players p on p.kakao_id = gp.kakao_id
     where gp.game_id = any(${ids})
     order by gp.joined_at
-  `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null }[];
+  `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null; taps: number | null }[];
   const gachaPlayers = (await sql`
     select gp.game_code, gp.kakao_id, p.nickname, p.profile_image, gp.money, gp.minutes
     from game_players gp join players p on p.kakao_id = gp.kakao_id
@@ -411,6 +424,8 @@ export async function listPastGames(code: string, me: string, offset = 0) {
       gachaResult: isGacha
         ? gachaRanking(gps.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, money: x.money, minutes: x.minutes })))
         : null,
+      outcome: r.outcome === "aborted" ? "aborted" : "completed",
+      fanfareResult: isGacha ? null : fanfareRanking(fanfareParts.filter((x) => Number(x.game_id) === Number(r.id))),
     };
   });
   return { items, hasMore: page.hasMore, nextOffset: page.nextOffset };
@@ -427,4 +442,33 @@ export async function leaveRoom(code: string, me: string): Promise<LeaveResult> 
   const r = rows[0];
   if (r?.out_ok) return { ok: true, roomDeleted: r.out_deleted };
   return { ok: false, reason: "not_member" };
+}
+
+function fanfareRanking(rows: { kakao_id: string; nickname: string | null; taps: number | null }[]) {
+  const scored = rows
+    .filter((r) => r.taps !== null)
+    .map((r) => ({ kakaoId: r.kakao_id, nickname: r.nickname, taps: Number(r.taps) }))
+    .sort((a, b) => b.taps - a.taps);
+  if (scored.length === 0) return null;
+  return scored.map((r) => ({ ...r, rank: scored.findIndex((x) => x.taps === r.taps) + 1 }));
+}
+
+/** 빵빠레 결과(참여자별 탭 수) 저장. 호스트만, 방 멤버의 기록만 받는다. */
+export async function saveFanfareResult(code: string, id: number, me: string, taps: Record<string, number>) {
+  const sql = getSql();
+  const game = (await sql`
+    select 1 from uk_room_games
+    where id = ${id} and room_code = ${code} and game_type = 'fanfare' and host_kakao_id = ${me}
+  `) as unknown[];
+  if (game.length === 0) return false;
+  const ids = Object.keys(taps);
+  const counts = ids.map((k) => Math.max(0, Math.floor(Number(taps[k]) || 0)));
+  await sql`
+    insert into uk_game_participants (game_id, kakao_id, taps)
+    select ${id}, t.kakao_id, t.taps
+    from unnest(${ids}::text[], ${counts}::int[]) as t(kakao_id, taps)
+    where exists (select 1 from uk_room_members m where m.room_code = ${code} and m.kakao_id = t.kakao_id)
+    on conflict (game_id, kakao_id) do update set taps = excluded.taps
+  `;
+  return true;
 }

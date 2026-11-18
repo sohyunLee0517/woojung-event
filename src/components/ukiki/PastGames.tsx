@@ -28,6 +28,11 @@ function PastGameCard({ game }: { game: PastGame }) {
         <span style={{ fontSize: 22 }}>{meta.emoji}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
           <b style={{ fontSize: 14 }}>{meta.label}</b>
+          {game.outcome === "aborted" && (
+            <span style={{ marginLeft: 6, fontSize: 11, padding: "1px 6px", borderRadius: 6, background: "rgba(248,113,113,.18)", color: "#f87171" }}>
+              중단
+            </span>
+          )}
           <span style={{ display: "block", fontSize: 12, opacity: 0.6 }}>
             {when(game.endedAt)} · 👥 {game.participants.length}
             {game.gachaResult?.[0] && ` · 👑 ${game.gachaResult[0].nickname ?? "?"}`}
@@ -47,7 +52,15 @@ function PastGameCard({ game }: { game: PastGame }) {
                   <span style={{ width: 44, textAlign: "right", opacity: 0.7 }}>{r.minutes}분</span>
                 </div>
               ))
-            : game.participants.map((p) => (
+            : game.fanfareResult
+              ? game.fanfareResult.map((r) => (
+                  <div key={r.kakaoId} style={{ display: "flex", gap: 8 }}>
+                    <span style={{ width: 28, opacity: 0.8 }}>{["🥇", "🥈", "🥉"][r.rank - 1] ?? `${r.rank}등`}</span>
+                    <span style={{ flex: 1 }}>{r.nickname ?? "?"}</span>
+                    <span>{r.taps}탭</span>
+                  </div>
+                ))
+              : game.participants.map((p) => (
                 <div key={p.kakaoId} style={{ display: "flex", gap: 8 }}>
                   <span style={{ width: 28 }}>{p.kakaoId === game.hostKakaoId ? "🎥" : "🙌"}</span>
                   <span style={{ flex: 1 }}>{p.nickname ?? "?"}</span>
@@ -85,12 +98,13 @@ export default function PastGames({ code }: { code: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  // 지난 게임이 없으면(또는 아직 불러오는 중이면) 영역을 아예 안 보여 준다
+  if (!items || items.length === 0) return null;
+
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <h2 style={{ fontSize: 15, fontWeight: 800 }}>📜 지난 게임</h2>
-      {items === null && <p style={{ fontSize: 13, opacity: 0.5 }}>불러오는 중…</p>}
-      {items?.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 끝난 게임이 없어요.</p>}
-      {items?.map((g) => <PastGameCard key={g.id} game={g} />)}
+      {items.map((g) => <PastGameCard key={g.id} game={g} />)}
       {nextOffset !== null && (
         <button onClick={() => load(nextOffset)} disabled={loading} style={{ ...ghostButton, opacity: loading ? 0.6 : 1 }}>
           {loading ? "불러오는 중…" : "더보기"}

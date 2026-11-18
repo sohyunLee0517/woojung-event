@@ -263,14 +263,20 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                   ? "방장은 가장 먼저 들어온 친구에게 넘어가요."
                   : "같이 한 게임 기록은 방에 남아요."}
               {room.visibility === "private" && room.members.length > 1 && " 다시 들어오려면 비밀번호가 필요해요."}
-              {fanfare?.hostKakaoId === me && " 내가 연 빵빠레는 끝나요."}
             </p>
+            {fanfare?.hostKakaoId === me && (
+              <div style={{ padding: "10px 12px", borderRadius: 12, background: "rgba(220,38,38,.15)", border: "1px solid rgba(220,38,38,.55)", fontSize: 13, lineHeight: 1.5 }}>
+                ⚠️ 내가 호스트인 <b>빵빠레가 진행 중</b>이에요.
+                <br />
+                나가면 게임이 <b>중단</b>되고 지난 게임에 &apos;중단&apos;으로 기록돼요.
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setConfirmLeave(false)} disabled={leaving} style={{ ...ghostButton, flex: 1 }}>
                 취소
               </button>
               <button onClick={leave} disabled={leaving} style={{ ...ghostButton, flex: 1, background: "#dc2626", opacity: leaving ? 0.6 : 1 }}>
-                {leaving ? "나가는 중…" : "나가기"}
+                {leaving ? "나가는 중…" : fanfare?.hostKakaoId === me ? "중단하고 나가기" : "나가기"}
               </button>
             </div>
           </div>
