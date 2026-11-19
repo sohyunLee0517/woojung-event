@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UK } from "./styles";
+import { postToApp } from "@/lib/app-bridge";
 
 /** 내 프로필 사진 + 이름. 사진을 누르면 로그아웃 메뉴가 나온다. */
 export default function ProfileMenu({
@@ -56,7 +57,7 @@ export default function ProfileMenu({
               boxShadow: "0 8px 24px rgba(0,0,0,.4)",
             }}
           >
-            <form action={logout}>
+            <form action={logout} onSubmit={() => postToApp({ type: "logout" })}>
               <button
                 type="submit"
                 style={{ width: "100%", padding: "10px 12px", border: "none", borderRadius: 8, background: "none", color: "#fff", fontSize: 14, textAlign: "left", cursor: "pointer" }}

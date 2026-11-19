@@ -7,7 +7,9 @@ import { listRooms, type RoomPage } from "@/lib/ukiki/rooms";
 import RoomBrowser from "@/components/ukiki/RoomBrowser";
 import CreateRoomForm from "@/components/ukiki/CreateRoomForm";
 import ProfileMenu from "@/components/ukiki/ProfileMenu";
-import { columnStyle, fixedColumnStyle, fixedPageStyle, pageStyle, primaryButton } from "@/components/ukiki/styles";
+import KakaoLoginButton from "@/components/ukiki/KakaoLoginButton";
+import AppLocationSync from "@/components/ukiki/AppLocationSync";
+import { columnStyle, fixedColumnStyle, fixedPageStyle, pageStyle } from "@/components/ukiki/styles";
 
 const iconLink = {
   width: 42,
@@ -52,17 +54,13 @@ export default async function Lobby({ searchParams }: { searchParams: Promise<{ 
             <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: -1 }}>우끼끼</h1>
             <p style={{ fontSize: 14, opacity: 0.6 }}>우리끼리 하는 미니게임 천국</p>
           </header>
-          <form
-            action={async () => {
+          <KakaoLoginButton
+            next={safeNextPath(next)}
+            webLogin={async () => {
               "use server";
               await signIn("kakao", { redirectTo: safeNextPath(next) });
             }}
-            style={{ display: "flex" }}
-          >
-            <button type="submit" style={{ ...primaryButton, flex: 1 }}>
-              카카오로 입장하기
-            </button>
-          </form>
+          />
           </>
         ) : (
           <>
@@ -84,6 +82,7 @@ export default async function Lobby({ searchParams }: { searchParams: Promise<{ 
             </header>
 
             {rooms && <RoomBrowser initial={rooms} />}
+            <AppLocationSync />
           </>
         )}
       </div>
