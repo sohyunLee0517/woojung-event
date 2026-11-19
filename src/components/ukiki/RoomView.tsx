@@ -13,6 +13,8 @@ import { LEGACY } from "@/lib/ukiki/legacy";
 import PushCard from "@/app/birthday-gacha/g/[code]/PushCard";
 
 const POLL_MS = 4000;
+// 떠 있는 새 게임 버튼에 가리지 않도록 스크롤 영역 아래에 남겨 두는 여백
+const FAB_SPACE = 104;
 
 function Avatar({ src, online, size = 34 }: { src: string | null; online: boolean; size?: number }) {
   return (
@@ -195,7 +197,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     }
   };
 
-  const sections = roomSections({ memberCount: room.members.length });
+  const sections = roomSections({ memberCount: room.members.length, activeGames: room.games.length });
   const fanfare = room.games.find((g) => g.type === "fanfare");
   const [picker, setPicker] = useState(false);
   const pick = (open: () => Promise<void>) => {
@@ -322,7 +324,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
         </section>
         )}
 
-        <div style={{ ...scrollAreaStyle, gap: 18 }}>
+        <div style={{ ...scrollAreaStyle, gap: 18, paddingBottom: sections.games ? FAB_SPACE : scrollAreaStyle.paddingBottom }}>
         {notice && (
           <p onClick={() => setNotice("")} style={{ fontSize: 13, color: UK.yellow, cursor: "pointer" }}>
             {notice}
@@ -386,9 +388,9 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
 
         {sections.games && (
           <>
+        {sections.active && (
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800 }}>🔥 진행 중</h2>
-          {!fanfare && gachas.length === 0 && pirates.length === 0 && snacks.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 열린 게임이 없어요. 새 게임을 만들어 보세요!</p>}
           {fanfare && (
             <Link href={fanfarePath(fanfare.id)} style={{ ...gameCard, borderColor: "rgba(254,229,0,.5)" }}>
               <span style={{ fontSize: 26 }}>{GAME_META.fanfare.emoji}</span>
@@ -438,6 +440,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             </Link>
           ))}
         </section>
+        )}
 
         <PushCard
           code={room.code}
@@ -447,15 +450,44 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           offLabel="새 게임이 열리면 알림 받기"
           testUrl={`/r/${room.code}`}
         />
-        <button onClick={() => setPicker(true)} disabled={!!busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1 }}>
-          {busy ? "여는 중…" : "＋ 새 게임 만들기"}
-        </button>
-
           </>
         )}
         <PastGames code={room.code} />
         </div>
       </div>
+
+      {sections.games && (
+        // 새 게임 만들기: 화면 아래에 떠 있는 버튼 (스크롤해도 그대로)
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 30,
+            padding: "24px 16px calc(16px + env(safe-area-inset-bottom))",
+            background: "linear-gradient(to bottom, rgba(10,10,10,0), rgba(10,10,10,.92) 40%)",
+            pointerEvents: "none",
+          }}
+        >
+          <button
+            onClick={() => setPicker(true)}
+            disabled={!!busy}
+            style={{
+              ...primaryButton,
+              display: "block",
+              width: "100%",
+              maxWidth: 448,
+              margin: "0 auto",
+              boxShadow: "0 6px 20px rgba(0,0,0,.45)",
+              opacity: busy ? 0.6 : 1,
+              pointerEvents: "auto",
+            }}
+          >
+            {busy ? "여는 중…" : "＋ 새 게임 만들기"}
+          </button>
+        </div>
+      )}
 
       {confirmDelete && (
         <div

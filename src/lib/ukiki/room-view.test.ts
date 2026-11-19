@@ -7,12 +7,20 @@ describe("roomSections (방 화면에 무엇을 보여 줄지)", () => {
   });
 
   it("혼자면 게임 대신 친구 초대하기", () => {
-    expect(roomSections({ memberCount: 1 })).toEqual({ invite: true, games: false });
+    expect(roomSections({ memberCount: 1, activeGames: 0 })).toEqual({ invite: true, games: false, active: false });
   });
 
   it("2명 이상이면 진행 중·새 게임 열기", () => {
-    expect(roomSections({ memberCount: 2 })).toEqual({ invite: false, games: true });
-    expect(roomSections({ memberCount: 7 })).toEqual({ invite: false, games: true });
+    expect(roomSections({ memberCount: 2, activeGames: 1 })).toEqual({ invite: false, games: true, active: true });
+    expect(roomSections({ memberCount: 7, activeGames: 3 })).toEqual({ invite: false, games: true, active: true });
+  });
+
+  it("진행 중인 게임이 없으면 진행 중 영역은 숨긴다 (새 게임 버튼은 그대로)", () => {
+    expect(roomSections({ memberCount: 2, activeGames: 0 })).toEqual({ invite: false, games: true, active: false });
+  });
+
+  it("혼자면 진행 중 게임이 있어도 진행 중 영역은 숨긴다", () => {
+    expect(roomSections({ memberCount: 1, activeGames: 2 })).toEqual({ invite: true, games: false, active: false });
   });
 });
 
