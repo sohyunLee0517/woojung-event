@@ -187,6 +187,12 @@ begin
     return;
   end if;
 
+  -- 모두 준비완료 → 3·2·1 이 끝나야 뽑을 수 있다
+  if not exists (select 1 from games g where g.code = p_code and g.started_at is not null and g.started_at <= now()) then
+    return query select null::text, null::int, null::int, 'not_started'::text;
+    return;
+  end if;
+
   select count(*) into v_drawn from capsules c where c.game_code = p_code and c.drawn_by = p_kakao;
   if v_drawn >= p_max then
     return query select null::text, null::int, null::int, 'no_ticket'::text;
@@ -309,3 +315,12 @@ create table if not exists uk_reports (
   status            text        not null default 'open',
   created_at        timestamptz not null default now()
 );
+
+-- 가챠 준비완료 → 3·2·1 (모든 게임 공통 흐름). 이미 진행 중이던 가챠는 시작된 것으로 둔다.
+alter table game_players add column if not exists ready boolean not null default false
+;
+alter table games add column if not exists started_at timestamptz
+;
+update games g set started_at = g.created_at
+where g.started_at is null and exists (select 1 from capsules c where c.game_code = g.code and c.drawn_by is not null)
+;

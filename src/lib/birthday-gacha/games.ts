@@ -1,3 +1,4 @@
+import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import { randomInt } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { getQuizStatus, type QuizStatus } from "@/lib/birthday-gacha/quiz";
@@ -94,6 +95,8 @@ export type GamePlayer = {
   online: boolean;
   isHost: boolean;
   /** 안 쓴 특수카드 수 (종류는 본인만 안다) */
+  /** 준비완료 눌렀는지 (3·2·1 시작 전) */
+  ready: boolean;
   cardCount: number;
 };
 
@@ -120,6 +123,8 @@ export type GameState = {
   quiz: QuizStatus | null;
   /** 남은 시간 계산용 서버 시각 */
   serverNow: string;
+  /** 모두 준비완료가 되어 잡힌 시작 시각 (3·2·1 뒤). 아직이면 null */
+  startedAt: string | null;
   /** 이 가챠가 열린 우끼끼 방 코드 (옛날 가챠면 null) */
   roomCode: string | null;
   /** 푸시 알림을 등록한 내 기기 수 */
@@ -137,8 +142,9 @@ async function parentRoomCode(code: string): Promise<string | null> {
 /** 화면에 내려줄 방 상태. 뽑히지 않은 캡슐의 내용은 포함하지 않는다. */
 export async function getGameState(code: string, me: string): Promise<GameState | null> {
   const sql = getSql();
-  const game = (await sql`select host_kakao_id from games where code = ${code}`) as {
+  const game = (await sql`select host_kakao_id, started_at from games where code = ${code}`) as {
     host_kakao_id: string;
+    started_at: string | null;
   }[];
   if (game.length === 0) return null;
   const host = game[0].host_kakao_id;
@@ -150,7 +156,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
   `;
 
   const players = (await sql`
-    select gp.kakao_id, p.nickname, p.profile_image, gp.seat, gp.tickets, gp.money, gp.minutes,
+    select gp.kakao_id, p.nickname, p.profile_image, gp.seat, gp.tickets, gp.money, gp.minutes, gp.ready,
            (now() - gp.last_seen_at) < make_interval(secs => ${ONLINE_WITHIN_S}) as online,
            (select count(*)::int from player_cards pc
              where pc.game_code = gp.game_code and pc.kakao_id = gp.kakao_id and pc.used_at is null) as card_count
@@ -166,6 +172,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
     tickets: number;
     money: number;
     minutes: number;
+    ready: boolean;
     online: boolean;
     card_count: number;
   }[];
@@ -214,6 +221,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
       minutes: p.minutes,
       online: p.online,
       isHost: p.kakao_id === host,
+      ready: p.ready,
       cardCount: p.card_count,
     })),
     totalCapsules: capsules.length,
@@ -226,6 +234,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
     })),
     quiz: await getQuizStatus(code, me),
     serverNow: new Date().toISOString(),
+    startedAt: game[0].started_at ? new Date(game[0].started_at).toISOString() : null,
     pushDevices: await pushDeviceCount(me),
     roomCode: await parentRoomCode(code),
   };
@@ -233,7 +242,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
 
 export type DrawResult =
   | { ok: true; capsule: { grade: Grade; amount: number; minutes: number } }
-  | { ok: false; reason: "no_ticket" | "empty" | "not_member" | "busy" | "need_players" };
+  | { ok: false; reason: "no_ticket" | "empty" | "not_member" | "busy" | "need_players" | "not_started" };
 
 /**
  * 뽑기권 1장을 쓰고 남은 캡슐 중 다음 것을 연다.
@@ -250,7 +259,7 @@ export async function drawCapsule(code: string, kakaoId: string): Promise<DrawRe
   if (r && !r.out_reason && r.out_grade) {
     return { ok: true, capsule: { grade: r.out_grade, amount: Number(r.out_amount), minutes: Number(r.out_minutes) } };
   }
-  const reason = (r?.out_reason ?? "busy") as "no_ticket" | "empty" | "not_member" | "busy" | "need_players";
+  const reason = (r?.out_reason ?? "busy") as "no_ticket" | "empty" | "not_member" | "busy" | "need_players" | "not_started";
   return { ok: false, reason };
 }
 
@@ -265,4 +274,19 @@ export async function listMyGames(kakaoId: string) {
     order by g.created_at desc
     limit 10
   `) as { code: string; created_at: string; players: number }[];
+}
+
+/**
+ * 준비완료 표시. 자리에 앉은 사람이 2명 이상이고 모두 준비완료면 시작 시각을 지금+3초로 잡는다.
+ * 한 번 시작하면 준비를 취소해도 멈추지 않는다.
+ */
+export async function setGachaReady(code: string, kakaoId: string, ready: boolean) {
+  const sql = getSql();
+  await sql`update game_players set ready = ${ready} where game_code = ${code} and kakao_id = ${kakaoId}`;
+  await sql`
+    update games g set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000})
+    where g.code = ${code} and g.started_at is null
+      and (select count(*) from game_players gp where gp.game_code = g.code) >= 2
+      and not exists (select 1 from game_players gp where gp.game_code = g.code and not gp.ready)
+  `;
 }

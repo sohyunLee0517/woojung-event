@@ -20,6 +20,8 @@ import {
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 import InstallCard from "./InstallCard";
 import PushCard from "./PushCard";
+import { CountdownView, GoBurst, ReadyStyles, ReadyWaiting } from "@/components/ukiki/ReadyRoom";
+import { countdownLeft, readyPhase, showGoBurst } from "@/lib/ukiki/ready";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { roomMapHref } from "@/lib/birthday-gacha/nav";
@@ -45,6 +47,7 @@ const DRAW_ERRORS: Record<string, string> = {
   not_member: "이 방에 참가하지 않았어요.",
   busy: "동시에 눌렸어요. 다시 눌러 주세요.",
   need_players: "친구가 들어와야 뽑을 수 있어요 (2명부터).",
+  not_started: "모두 준비완료를 눌러야 시작해요.",
 };
 
 function Avatar({ src, size = 36, online }: { src: string | null; size?: number; online?: boolean }) {
@@ -549,10 +552,29 @@ export default function GameView({ code }: { code: string }) {
     return () => clearInterval(id);
   }, [load]);
 
+  // 시작 전(대기·3·2·1)에는 더 자주 불러오고 시계도 촘촘하게
+  const startedMs = state?.startedAt ? new Date(state.startedAt).getTime() : null;
+  const serverNowMs = now + clockOffset;
+  const rp = readyPhase(startedMs, serverNowMs);
+  const fast = rp !== "STARTED" || showGoBurst(startedMs, serverNowMs);
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), fast ? 200 : 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [fast]);
+  useEffect(() => {
+    if (rp === "STARTED") return;
+    const id = setInterval(load, 1000);
+    return () => clearInterval(id);
+  }, [rp, load]);
+
+  const toggleReady = async (ready: boolean) => {
+    await fetch(`/api/birthday-gacha/games/${code}/ready`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ready }),
+    }).catch(() => null);
+    await load();
+  };
 
   useEffect(() => {
     if (!notice) return;
@@ -809,8 +831,23 @@ export default function GameView({ code }: { code: string }) {
           </section>
         )}
 
+        <ReadyStyles />
+        {showGoBurst(startedMs, serverNowMs) && <GoBurst label="뽑기 시작! 🎰" />}
+
+        {/* 시작 전: 모두 준비완료 → 3·2·1 */}
+        {state && me && rp === "WAITING" && (
+          <ReadyWaiting
+            players={state.players.map((p) => ({ id: p.kakaoId, name: p.nickname ?? "친구", ready: p.ready }))}
+            meId={state.me}
+            emoji="🎰"
+            onReady={() => toggleReady(!me.ready)}
+            onNudge={state.roomCode ? () => requestNudge(state.roomCode as string, code) : undefined}
+          />
+        )}
+        {state && me && rp === "COUNTDOWN" && <CountdownView count={countdownLeft(startedMs, serverNowMs)} hint="🎟️ 곧 뽑기가 열려요" />}
+
         {/* 가챠 기계 */}
-        {state && (
+        {state && (!me || rp === "STARTED") && (
           <section style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "stretch" }}>
             <GachaMachine spinning={phase === "spinning"} />
             {me && (

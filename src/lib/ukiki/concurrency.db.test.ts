@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startGachaNow } from "@/lib/ukiki/test-helpers";
 import { getSql } from "@/lib/db";
 import { createGame, drawCapsule, joinGame } from "@/lib/birthday-gacha/games";
 import { createFanfare, createRoom, endFanfare, enterRoom } from "./rooms";
@@ -114,6 +115,7 @@ describe.skipIf(!hasDb)("동시성 (실제 DB)", () => {
     await Promise.all(players.slice(1).map((p) => joinGame(code, p)));
 
     // 각자 뽑기권 3장인데 5번씩 동시에 누른다
+    await startGachaNow(code);
     const results = await Promise.all(players.flatMap((p) => Array.from({ length: 5 }, () => drawCapsule(code, p))));
     const ok = results.filter((r) => r.ok);
     expect(ok).toHaveLength(9);

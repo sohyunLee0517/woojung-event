@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startGachaNow } from "@/lib/ukiki/test-helpers";
 import { getSql } from "@/lib/db";
 import { drawCapsule, joinGame } from "@/lib/birthday-gacha/games";
 import {
@@ -44,6 +45,7 @@ describe.skipIf(!hasDb)("지난 게임 (실제 DB)", () => {
     gacha = made.gachaCode;
     await joinGame(gacha, B);
     await joinGame(gacha, C);
+    await startGachaNow(gacha);
     for (let i = 0; i < 3; i++) for (const p of [A, B, C]) await drawCapsule(gacha, p);
   });
 

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startGachaNow } from "@/lib/ukiki/test-helpers";
 import { getSql } from "@/lib/db";
 import { createGame, drawCapsule, joinGame } from "@/lib/birthday-gacha/games";
 
@@ -30,6 +31,7 @@ describe.skipIf(!hasDb)("가챠 최소 인원 (실제 DB)", () => {
 
   it("친구가 들어오면 뽑을 수 있다", async () => {
     await joinGame(code, B);
+    await startGachaNow(code);
     expect((await drawCapsule(code, A)).ok).toBe(true);
   });
 });

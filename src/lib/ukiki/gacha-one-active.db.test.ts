@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startGachaNow } from "@/lib/ukiki/test-helpers";
 import { getSql } from "@/lib/db";
 import { drawCapsule, joinGame } from "@/lib/birthday-gacha/games";
 import { createGachaInRoom, createRoom, enterRoom } from "./rooms";
@@ -68,6 +69,7 @@ describe.skipIf(!hasDb)("생일 가챠 중복 개설 막기 (실제 DB)", () => 
     const players = [host_kakao_id, ...PEOPLE.filter((p) => p !== host_kakao_id).slice(0, 2)];
     const host = PEOPLE.find((p) => !players.includes(p))!;
     await Promise.all(players.map((p) => joinGame(code, p)));
+    await startGachaNow(code);
     for (const p of players) for (let i = 0; i < 3; i++) await drawCapsule(code, p);
 
     expect(await activeGachas(room)).toEqual([]);

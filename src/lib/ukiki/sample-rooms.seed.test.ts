@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { startGachaNow } from "@/lib/ukiki/test-helpers";
 import { getSql } from "@/lib/db";
 import { drawCapsule, joinGame } from "@/lib/birthday-gacha/games";
 import { createFanfare, createGachaInRoom, createRoom, endFanfare, enterRoom, joinFanfare } from "./rooms";
@@ -103,6 +104,7 @@ describe.skipIf(!process.env.DATABASE_URL || !MODE)("샘플 방", () => {
             const g = made.gachaCode;
             const players = members.slice(0, 3);
             for (const p of players.slice(1)) await joinGame(g, p);
+            await startGachaNow(g);
             for (let d = 0; d < 3; d++) for (const p of players) await drawCapsule(g, p);
           }
         }
@@ -117,6 +119,7 @@ describe.skipIf(!process.env.DATABASE_URL || !MODE)("샘플 방", () => {
           const g = made.kind === "created" ? made.gachaCode : null;
           if (g && members[1]) {
             await joinGame(g, members[1]);
+            await startGachaNow(g);
             await drawCapsule(g, members[0]);
           }
         }
