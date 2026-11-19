@@ -11,11 +11,20 @@ import { primaryButton } from "./styles";
  *   그 밖(웹·예전 앱): 지금처럼 카카오 웹 로그인
  */
 export default function KakaoLoginButton({ next, webLogin }: { next: string; webLogin: () => Promise<void> }) {
-  const [native, setNative] = useState(false);
+  // null: 앱 안인지 아직 모름. 이때 웹 로그인 폼을 깔아 두면 앱에서 빨리 누른 사람이 웹 로그인으로 빠진다.
+  const [native, setNative] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => setNative(appInfo()?.nativeLogin === true), []);
+
+  if (native === null) {
+    return (
+      <button type="button" disabled style={{ ...primaryButton, opacity: 0.6 }}>
+        카카오로 입장하기
+      </button>
+    );
+  }
 
   if (!native) {
     return (
