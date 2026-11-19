@@ -41,7 +41,7 @@ export function postToApp(msg: AppMessage, w?: unknown): boolean {
   return true;
 }
 
-export type NativeKakaoResult = { accessToken: string } | { error: string };
+export type NativeKakaoResult = { accessToken: string } | { error: string; detail?: string };
 
 export function requestNativeKakaoLogin(w?: unknown): Promise<NativeKakaoResult> {
   const bw = bridgeWindow(w);

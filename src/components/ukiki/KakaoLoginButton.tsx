@@ -43,7 +43,7 @@ export default function KakaoLoginButton({ next, webLogin }: { next: string; web
     const r = await requestNativeKakaoLogin();
     if ("error" in r) {
       setBusy(false);
-      if (r.error !== "cancel") setError("카카오 로그인에 실패했어요. 다시 눌러 주세요.");
+      if (r.error !== "cancel") setError(`카카오 로그인에 실패했어요. 다시 눌러 주세요. (${"detail" in r && r.detail ? r.detail : r.error})`);
       return;
     }
     const res = await signIn("kakao-native", { accessToken: r.accessToken, redirect: false });
