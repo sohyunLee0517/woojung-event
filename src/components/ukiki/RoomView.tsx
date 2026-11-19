@@ -10,6 +10,7 @@ import { MIN_PLAYERS, joinedMembers, roomSections } from "@/lib/ukiki/room-view"
 import { fixedColumnStyle, fixedPageStyle, GAME_META, ghostButton, primaryButton, scrollAreaStyle, UK } from "./styles";
 import TopBar from "./TopBar";
 import { LEGACY } from "@/lib/ukiki/legacy";
+import { requestNudge } from "@/lib/ukiki/nudge-client";
 
 const POLL_MS = 4000;
 
@@ -147,6 +148,19 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
   const sections = roomSections({ memberCount: room.members.length });
   const fanfare = room.games.find((g) => g.type === "fanfare");
   const [picker, setPicker] = useState(false);
+  const nudge = async (game: number | string) => setNotice(await requestNudge(room.code, game));
+  const nudgeButton = (game: number | string) => (
+    <button
+      onClick={(e) => {
+        e.preventDefault();
+        void nudge(game);
+      }}
+      aria-label="안 들어온 친구 재촉하기"
+      style={{ ...ghostButton, padding: "8px 10px" }}
+    >
+      📣
+    </button>
+  );
   const pick = (open: () => Promise<void>) => {
     setPicker(false);
     void open();
@@ -330,6 +344,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                     : `${fanfare.hostName ?? "친구"}님이 열었어요`}
                 </span>
               </span>
+              {nudgeButton(fanfare.id)}
               <span style={{ ...ghostButton, background: UK.yellow, color: "#191919" }}>
                 {LEGACY.fanfareHost && fanfare.hostKakaoId === me ? "열기" : "참여"}
               </span>
@@ -342,6 +357,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                 <b>생일 가챠</b>
                 <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{g.hostName ?? "친구"}님이 열었어요</span>
               </span>
+              {g.refCode && nudgeButton(g.refCode)}
               <span style={ghostButton}>입장</span>
             </Link>
           ))}

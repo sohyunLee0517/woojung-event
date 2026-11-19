@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { notifyNewGame } from "@/lib/ukiki/game-push";
 import { auth } from "@/auth";
 import { cancelFanfare, createFanfare, endFanfare, normalizeRoomCode } from "@/lib/ukiki/rooms";
 import { LEGACY } from "@/lib/ukiki/legacy";
@@ -9,7 +10,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ code: 
   const me = (await auth())?.user?.id;
   if (!me) return NextResponse.json({ kind: "unauthorized" }, { status: 401 });
   const code = normalizeRoomCode((await params).code);
-  return NextResponse.json(await createFanfare(code, me));
+  const outcome = await createFanfare(code, me);
+  // 새 게임 알림은 응답을 막지 않게 끝난 뒤에 보낸다
+  if (outcome.kind === "created") after(() => notifyNewGame(code, outcome.id, me).catch((e) => console.error("[push] 새 게임 알림 실패", e)));
+  return NextResponse.json(outcome);
 }
 
 // 빵빠레 끝내기 (호스트만). 호스트 없는 빵빠레는 시작 전 '닫기'만 방 멤버 누구나

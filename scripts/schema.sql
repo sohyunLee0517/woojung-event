@@ -132,6 +132,9 @@ create unique index if not exists uk_one_active_fanfare
   on uk_room_games (room_code) where game_type = 'fanfare' and status = 'active'
 ;
 
+-- 재촉하기: 같은 게임은 1분에 한 번만 (마지막으로 재촉한 시각)
+alter table uk_room_games add column if not exists last_nudged_at timestamptz;
+
 -- 캡슐을 다 뽑은 가챠는 끝난 게임으로 (새 가챠를 열 수 있게)
 update uk_room_games g set status = 'ended', ended_at = now(), outcome = 'completed'
 where g.game_type = 'gacha' and g.status = 'active'

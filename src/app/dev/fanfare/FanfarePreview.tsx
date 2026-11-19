@@ -173,6 +173,7 @@ export default function FanfarePreview() {
       onReady={() => {}}
       onClose={() => {}}
       onTap={() => {}}
+      onNudge={async () => "📣 2명에게 재촉했어요!"}
     />
   ) : null;
 

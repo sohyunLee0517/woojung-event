@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import TemperatureGauge from "@/components/TemperatureGauge";
 import TopBar from "@/components/ukiki/TopBar";
 import { ghostButton, primaryButton, UK } from "@/components/ukiki/styles";
@@ -46,6 +47,7 @@ export default function FanfareStage({
   onReady,
   onClose,
   onTap,
+  onNudge,
 }: {
   backHref: string;
   phase: FanfarePhase;
@@ -61,7 +63,17 @@ export default function FanfareStage({
   onReady: () => void;
   onClose: () => void;
   onTap: () => void;
+  /** 재촉하기: 결과 문구를 돌려준다 */
+  onNudge?: () => Promise<string>;
 }) {
+  const [nudgeMsg, setNudgeMsg] = useState("");
+  const [nudging, setNudging] = useState(false);
+  const nudge = async () => {
+    if (!onNudge || nudging) return;
+    setNudging(true);
+    setNudgeMsg(await onNudge());
+    setNudging(false);
+  };
   const myReady = players.find((p) => p.id === meId)?.ready === true;
   const readyCount = players.filter((p) => p.ready).length;
   const allReady = players.length >= 2 && readyCount === players.length;
@@ -115,6 +127,12 @@ export default function FanfareStage({
               {myReady ? "✅ 준비완료 (취소하려면 눌러요)" : "🔥 준비완료"}
             </button>
             {players.length < 2 && <p style={{ fontSize: 13, color: UK.yellow }}>친구가 빵빠레에 들어오길 기다리는 중</p>}
+            {onNudge && (
+              <button onClick={nudge} disabled={nudging} style={{ ...ghostButton, width: "100%", maxWidth: 320, opacity: nudging ? 0.6 : 1 }}>
+                📣 안 들어온 친구 재촉하기
+              </button>
+            )}
+            {nudgeMsg && <p style={{ fontSize: 13, color: UK.yellow }}>{nudgeMsg}</p>}
             <button onClick={onClose} style={{ ...ghostButton, padding: "8px 14px", fontSize: 13, opacity: 0.7 }}>
               빵빠레 닫기
             </button>

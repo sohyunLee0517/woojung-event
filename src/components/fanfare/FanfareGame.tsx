@@ -38,6 +38,7 @@ import { FanfareHost, FanfareViewer, openCamera } from "@/lib/fanfare/rtc";
 import { cameraErrorMessage } from "@/lib/fanfare/camera";
 import TopBar from "@/components/ukiki/TopBar";
 import FanfareStage from "./FanfareStage";
+import { requestNudge } from "@/lib/ukiki/nudge-client";
 import { ghostButton, primaryButton, UK } from "@/components/ukiki/styles";
 
 type Me = { id: string; name: string; image: string | null };
@@ -514,6 +515,7 @@ export default function FanfareGame({
         onReady={toggleReady}
         onClose={closeWaiting}
         onTap={onTap}
+        onNudge={() => requestNudge(roomCode, gameId)}
       />
     );
   }
