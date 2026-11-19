@@ -132,6 +132,27 @@ create unique index if not exists uk_one_active_fanfare
   on uk_room_games (room_code) where game_type = 'fanfare' and status = 'active'
 ;
 
+-- 캡슐을 다 뽑은 가챠는 끝난 게임으로 (새 가챠를 열 수 있게)
+update uk_room_games g set status = 'ended', ended_at = now(), outcome = 'completed'
+where g.game_type = 'gacha' and g.status = 'active'
+  and exists (select 1 from capsules c where c.game_code = g.ref_code)
+  and not exists (select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null)
+;
+
+-- 이미 중복으로 열린 가챠는 처음 만든 것만 남긴다
+update uk_room_games g set status = 'ended', ended_at = now(), outcome = 'cancelled'
+where g.game_type = 'gacha' and g.status = 'active'
+  and exists (
+    select 1 from uk_room_games o
+    where o.room_code = g.room_code and o.game_type = 'gacha' and o.status = 'active'
+      and (o.created_at, o.id) < (g.created_at, g.id))
+;
+
+-- 방마다 진행 중인 생일 가챠도 1개만
+create unique index if not exists uk_one_active_gacha
+  on uk_room_games (room_code) where game_type = 'gacha' and status = 'active'
+;
+
 -- 가챠 뽑기 1번. 플레이어 줄을 잠근 채로 뽑기권·최대 횟수를 확인해서
 -- 같은 사람이 연타해도 정해진 횟수 넘게 뽑히지 않는다.
 create or replace function bg_draw_capsule(p_code text, p_kakao text, p_max int)
@@ -189,6 +210,12 @@ begin
   update game_players gp
   set tickets = gp.tickets - 1, money = gp.money + v_amount, minutes = gp.minutes + v_minutes
   where gp.game_code = p_code and gp.kakao_id = p_kakao;
+
+  -- 마지막 캡슐이면 방의 가챠를 끝난 게임으로
+  if not exists (select 1 from capsules c where c.game_code = p_code and c.drawn_by is null) then
+    update uk_room_games g set status = 'ended', ended_at = now(), outcome = 'completed'
+    where g.ref_code = p_code and g.game_type = 'gacha' and g.status = 'active';
+  end if;
 
   return query select v_grade, v_amount, v_minutes, null::text;
 end;

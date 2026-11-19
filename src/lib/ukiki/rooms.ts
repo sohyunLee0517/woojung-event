@@ -305,15 +305,42 @@ export async function getRoomGame(code: string, id: number) {
 }
 
 /** 방 안에서 생일 가챠 한 판을 연다. 기존 가챠 게임을 만들고 방에 연결한다. */
-export async function createGachaInRoom(code: string, me: string): Promise<string | null> {
-  if (!(await isRoomMember(code, me))) return null;
+export type GachaCreateOutcome =
+  | { kind: "created"; gachaCode: string }
+  | { kind: "conflict"; active: { gachaCode: string; hostName: string | null }; message: string }
+  | { kind: "retry" }
+  | { kind: "not_member" };
+
+/**
+ * 방에서 생일 가챠를 연다. 방마다 진행 중인 가챠는 1개.
+ * 먼저 저장된 사람 것만 열리고, 늦은 사람은 이미 열린 가챠로 안내한다.
+ */
+export async function createGachaInRoom(code: string, me: string): Promise<GachaCreateOutcome> {
+  if (!(await isRoomMember(code, me))) return { kind: "not_member" };
   const gachaCode = await createGame(me);
   const sql = getSql();
-  await sql`
+  const inserted = (await sql`
     insert into uk_room_games (room_code, game_type, host_kakao_id, ref_code)
     values (${code}, 'gacha', ${me}, ${gachaCode})
-  `;
-  return gachaCode;
+    on conflict do nothing
+    returning id
+  `) as unknown[];
+  if (inserted.length > 0) return { kind: "created", gachaCode };
+
+  // 늦었다: 만든 가챠는 지우고 이미 열린 가챠로 안내
+  await sql`delete from games where code = ${gachaCode}`;
+  const rows = (await sql`
+    select g.ref_code, p.nickname
+    from uk_room_games g join players p on p.kakao_id = g.host_kakao_id
+    where g.room_code = ${code} and g.game_type = 'gacha' and g.status = 'active'
+    limit 1
+  `) as { ref_code: string; nickname: string | null }[];
+  if (!rows[0]) return { kind: "retry" };
+  return {
+    kind: "conflict",
+    active: { gachaCode: rows[0].ref_code, hostName: rows[0].nickname },
+    message: `${rows[0].nickname ?? "다른 친구"}님이 먼저 생일 가챠를 열었어요`,
+  };
 }
 
 /** 빵빠레 화면에 들어온 사람을 참여자로 기록한다 (여러 번 들어와도 한 번) */

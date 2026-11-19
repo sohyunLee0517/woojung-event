@@ -39,7 +39,9 @@ describe.skipIf(!hasDb)("지난 게임 (실제 DB)", () => {
     await endFanfare(room, f.id, A);
 
     // 가챠 한 판: 3명이 9개 다 뽑기
-    gacha = (await createGachaInRoom(room, A)) as string;
+    const made = await createGachaInRoom(room, A);
+    if (made.kind !== "created") throw new Error("가챠 열기 실패");
+    gacha = made.gachaCode;
     await joinGame(gacha, B);
     await joinGame(gacha, C);
     for (let i = 0; i < 3; i++) for (const p of [A, B, C]) await drawCapsule(gacha, p);

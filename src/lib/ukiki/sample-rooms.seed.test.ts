@@ -98,8 +98,9 @@ describe.skipIf(!process.env.DATABASE_URL || !MODE)("샘플 방", () => {
               await endFanfare(room.code, f.id, members[k % members.length]);
             }
           } else {
-            const g = await createGachaInRoom(room.code, members[0]);
-            if (!g) continue;
+            const made = await createGachaInRoom(room.code, members[0]);
+            if (made.kind !== "created") continue;
+            const g = made.gachaCode;
             const players = members.slice(0, 3);
             for (const p of players.slice(1)) await joinGame(g, p);
             for (let d = 0; d < 3; d++) for (const p of players) await drawCapsule(g, p);
@@ -112,7 +113,8 @@ describe.skipIf(!process.env.DATABASE_URL || !MODE)("샘플 방", () => {
           if (f.kind === "created") for (const m of members) await joinFanfare(room.code, f.id, m);
         }
         if (active.includes("gacha")) {
-          const g = await createGachaInRoom(room.code, members[0]);
+          const made = await createGachaInRoom(room.code, members[0]);
+          const g = made.kind === "created" ? made.gachaCode : null;
           if (g && members[1]) {
             await joinGame(g, members[1]);
             await drawCapsule(g, members[0]);

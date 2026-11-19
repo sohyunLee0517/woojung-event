@@ -47,7 +47,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
   const router = useRouter();
   const [room, setRoom] = useState(initial);
   const [busy, setBusy] = useState<"fanfare" | "gacha" | null>(null);
-  const [conflict, setConflict] = useState<{ message: string; active: ActiveFanfare } | null>(null);
+  const [conflict, setConflict] = useState<{ message: string; emoji: string; href: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -105,7 +105,8 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
       : null;
     setBusy(null);
     if (data?.kind === "created") router.push(fanfarePath(data.id));
-    else if (data?.kind === "conflict") setConflict({ message: data.message, active: data.active });
+    else if (data?.kind === "conflict")
+      setConflict({ message: data.message, emoji: GAME_META.fanfare.emoji, href: fanfarePath(data.active.id) });
     else if (data?.kind === "retry") setNotice("방금 빵빠레가 끝났어요. 다시 눌러 주세요.");
     else setNotice("빵빠레를 열지 못했어요.");
     load();
@@ -115,10 +116,19 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     if (busy) return;
     setBusy("gacha");
     const res = await fetch(`/api/ukiki/rooms/${room.code}/gacha`, { method: "POST" }).catch(() => null);
-    const data = res ? ((await res.json()) as { ok: boolean; gachaCode?: string }) : null;
+    const data = res
+      ? ((await res.json()) as
+          | { kind: "created"; gachaCode: string }
+          | { kind: "conflict"; message: string; active: { gachaCode: string } }
+          | { kind: "retry" | "not_member" | "unauthorized" })
+      : null;
     setBusy(null);
-    if (data?.ok && data.gachaCode) router.push(`/birthday-gacha/g/${data.gachaCode}`);
+    if (data?.kind === "created") router.push(`/birthday-gacha/g/${data.gachaCode}`);
+    else if (data?.kind === "conflict")
+      setConflict({ message: data.message, emoji: GAME_META.gacha.emoji, href: `/birthday-gacha/g/${data.active.gachaCode}` });
+    else if (data?.kind === "retry") setNotice("방금 가챠가 끝났어요. 다시 눌러 주세요.");
     else setNotice("가챠를 열지 못했어요.");
+    load();
   };
 
   const invite = async () => {
@@ -331,7 +341,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             <span style={{ fontSize: 26 }}>{GAME_META.fanfare.emoji}</span>
             <span style={{ flex: 1, textAlign: "left" }}>
               <b>빵빠레 열기</b>
-              <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>내가 호스트(카메라) · 방마다 1개만 진행돼요</span>
+              <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>내가 호스트(카메라)</span>
             </span>
             <span>{busy === "fanfare" ? "…" : "＋"}</span>
           </button>
@@ -402,14 +412,13 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           }}
         >
           <div style={{ width: "100%", maxWidth: 340, padding: 20, borderRadius: 18, background: "#1c1c1c", textAlign: "center", display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ fontSize: 36 }}>🎉</p>
+            <p style={{ fontSize: 36 }}>{conflict.emoji}</p>
             <p style={{ fontSize: 17, fontWeight: 800 }}>{conflict.message}</p>
-            <p style={{ fontSize: 13, opacity: 0.7 }}>빵빠레는 방마다 하나씩만 열 수 있어요. 지금 열린 빵빠레에 바로 참여할까요?</p>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setConflict(null)} style={{ ...ghostButton, flex: 1 }}>
                 나가기
               </button>
-              <button onClick={() => router.push(fanfarePath(conflict.active.id))} style={{ ...primaryButton, flex: 2 }}>
+              <button onClick={() => router.push(conflict.href)} style={{ ...primaryButton, flex: 2 }}>
                 참여하기
               </button>
             </div>
