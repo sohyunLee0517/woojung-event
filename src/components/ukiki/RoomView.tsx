@@ -251,6 +251,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                         boxShadow: "0 8px 24px rgba(0,0,0,.4)",
                       }}
                     >
+{!isOwner && (
                       <button
                         onClick={() => {
                           setMenuOpen(false);
@@ -260,6 +261,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                       >
                         방 나가기
                       </button>
+                      )}
                       <a
                         href={`/report?room=${room.code}`}
                         style={{ display: "block", padding: "10px 12px", borderRadius: 8, color: "#fff", fontSize: 14, textDecoration: "none" }}

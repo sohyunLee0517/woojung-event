@@ -90,7 +90,6 @@ export default async function AdminPage() {
 
         <section style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 10 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700 }}>🎮 게임 켜기/끄기</h2>
-          <p style={{ fontSize: 12, opacity: 0.6 }}>끄면 모든 방에서 새로 열 수 없고, 진행 중 목록과 게임 화면에서도 사라져요.</p>
           {GAME_TYPES.map((type) => {
             const on = switches[type];
             return (
@@ -107,7 +106,6 @@ export default async function AdminPage() {
               >
                 <span style={{ fontSize: 22 }}>{GAME_META[type].emoji}</span>
                 <span style={{ flex: 1, fontWeight: 700 }}>{GAME_META[type].label}</span>
-                <span style={{ fontSize: 12, opacity: 0.6 }}>{on ? "켜짐" : "꺼짐"}</span>
                 <Toggle submit checked={on} label={GAME_META[type].label} />
               </form>
             );

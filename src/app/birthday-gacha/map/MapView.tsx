@@ -235,9 +235,6 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
   const others = players.filter((p) => p.kakaoId !== myId);
   const outdoor = myFix ? isOutdoorFix(myFix.accuracy) : false;
 
-  const stopSharing = async () => {
-    await fetch("/api/birthday-gacha/locations", { method: "DELETE" }).catch(() => {});
-  };
 
   return (
     <div style={{ position: "absolute", inset: 0, color: "#fff", fontFamily: "sans-serif" }}>
@@ -288,12 +285,6 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
         >
           {backLabel}
         </Link>
-        <button
-          onClick={stopSharing}
-          style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(0,0,0,.75)", color: "#fff", border: "none" }}
-        >
-          내 위치 지우기
-        </button>
       </div>
 
       <div
