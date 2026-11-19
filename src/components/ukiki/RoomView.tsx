@@ -50,7 +50,7 @@ function Avatar({ src, online, size = 34 }: { src: string | null; online: boolea
 export default function RoomView({ initial, me }: { initial: RoomDetail; me: string }) {
   const router = useRouter();
   const [room, setRoom] = useState(initial);
-  const [busy, setBusy] = useState<"fanfare" | "gacha" | "pirate" | "snack" | null>(null);
+  const [busy, setBusy] = useState<"fanfare" | "gacha" | "pirate" | "snack" | "pinball" | null>(null);
   const [conflict, setConflict] = useState<{ message: string; emoji: string; href: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -165,6 +165,22 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     load();
   };
 
+  const pinballGamePath = (id: number) => `/r/${room.code}/pinball/${id}`;
+  const openPinball = async () => {
+    if (busy) return;
+    setBusy("pinball");
+    const res = await fetch(`/api/ukiki/rooms/${room.code}/pinball`, { method: "POST" }).catch(() => null);
+    const data = res ? ((await res.json()) as { kind: string; id?: number; message?: string }) : null;
+    setBusy(null);
+    if (data?.kind === "created" && data.id) router.push(pinballGamePath(data.id));
+    else if (data?.kind === "conflict" && data.id)
+      setConflict({ message: data.message ?? "이미 열린 랜덤 핀볼이 있어요", emoji: GAME_META.pinball.emoji, href: pinballGamePath(data.id) });
+    else if (data?.kind === "retry") setNotice("방금 랜덤 핀볼이 시작됐어요. 다시 눌러 주세요.");
+    else if (data?.kind === "disabled") setNotice("지금은 쉬고 있는 게임이에요.");
+    else setNotice("랜덤 핀볼을 열지 못했어요.");
+    load();
+  };
+
   const openGacha = async () => {
     if (busy) return;
     setBusy("gacha");
@@ -207,6 +223,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
   const gachas = room.games.filter((g) => g.type === "gacha");
   const pirates = room.games.filter((g) => g.type === "pirate");
   const snacks = room.games.filter((g) => g.type === "snack");
+  const pinballs = room.games.filter((g) => g.type === "pinball");
   const onlineCount = room.members.filter((m) => m.online).length;
 
   return (
@@ -429,6 +446,16 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
               <span style={ghostButton}>참여</span>
             </Link>
           ))}
+          {pinballs.map((g) => (
+            <Link key={g.id} href={pinballGamePath(g.id)} style={gameCard}>
+              <span style={{ fontSize: 26 }}>{GAME_META.pinball.emoji}</span>
+              <span style={{ flex: 1 }}>
+                <b>{GAME_META.pinball.label}</b>
+                <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{g.hostName ?? "친구"}님이 열었어요</span>
+              </span>
+              <span style={ghostButton}>참여</span>
+            </Link>
+          ))}
           {snacks.map((g) => (
             <Link key={g.id} href={snackGamePath(g.id)} style={gameCard}>
               <span style={{ fontSize: 26 }}>{GAME_META.snack.emoji}</span>
@@ -567,6 +594,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                 ["gacha", openGacha],
                 ["pirate", openPirate],
                 ["snack", openSnack],
+                ["pinball", openPinball],
               ] as const
             )
               .filter(([type]) => room.enabledGames?.[type] !== false)

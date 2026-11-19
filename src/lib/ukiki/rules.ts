@@ -3,7 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 // 우끼끼(우리끼리) 방 규칙. DB 없이 테스트할 수 있는 순수 함수만 둔다.
 
 export type Visibility = "public" | "private";
-export type GameType = "fanfare" | "gacha" | "pirate" | "snack";
+export type GameType = "fanfare" | "gacha" | "pirate" | "snack" | "pinball";
 
 export const ROOM_NAME_MAX = 20;
 export const ROOM_PASSWORD_MIN = 4;

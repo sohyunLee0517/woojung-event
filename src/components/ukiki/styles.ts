@@ -93,4 +93,5 @@ export const GAME_META = {
   gacha: { emoji: "🎰", label: "생일 가챠", desc: "캡슐을 뽑아 등급별 선물 받기" },
   pirate: { emoji: "🏴‍☠️", label: "해적 무찌르기", desc: "돌아가며 칼을 꽂아요. 해적이 튀어나오면 실패!" },
   snack: { emoji: "🍪", label: "과자 나눠먹기", desc: "각자 몰래 잘라 가요. 합이 100을 넘으면 실패!" },
+  pinball: { emoji: "🎱", label: "랜덤 핀볼", desc: "구슬을 굴려 1등이 오늘의 주인공!" },
 } as const;

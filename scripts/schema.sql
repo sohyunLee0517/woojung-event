@@ -385,3 +385,29 @@ create table if not exists uk_snack_players (
   cut_at    timestamptz,
   primary key (game_id, kakao_id)
 );
+
+-- ===== 랜덤 핀볼 =====
+alter table uk_room_games drop constraint if exists uk_room_games_game_type_check
+;
+alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack', 'pinball'))
+;
+create unique index if not exists uk_one_active_pinball
+  on uk_room_games (room_code) where game_type = 'pinball' and status = 'active'
+;
+
+-- 핀볼 한 판. seed 로 판·구슬 움직임이 정해지고, result_order 는 그 시드로 서버가 계산한 도착 순서
+create table if not exists uk_pinball_games (
+  game_id      bigint      primary key references uk_room_games(id) on delete cascade,
+  started_at   timestamptz,
+  seed         bigint,
+  members      text[],
+  result_order text[]
+);
+
+create table if not exists uk_pinball_players (
+  game_id   bigint      not null references uk_room_games(id) on delete cascade,
+  kakao_id  text        not null,
+  ready     boolean     not null default false,
+  joined_at timestamptz not null default clock_timestamp(),
+  primary key (game_id, kakao_id)
+);

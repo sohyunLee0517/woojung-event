@@ -401,7 +401,7 @@ export async function listPastGames(code: string, me: string, offset = 0) {
       where g.room_code = ${code}
         and (
           (g.game_type = 'fanfare' and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
-          or (g.game_type in ('pirate', 'snack') and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
+          or (g.game_type in ('pirate', 'snack', 'pinball') and g.status = 'ended' and g.ended_at <= now() and coalesce(g.outcome, 'completed') <> 'cancelled')
           or (g.game_type = 'gacha'
               and exists (select 1 from capsules c where c.game_code = g.ref_code)
               and not exists (select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null))
@@ -444,7 +444,7 @@ export async function listPastGames(code: string, me: string, offset = 0) {
     minutes: number;
   }[];
 
-  const miniIds = page.items.filter((r) => r.game_type === "pirate" || r.game_type === "snack").map((r) => Number(r.id));
+  const miniIds = page.items.filter((r) => r.game_type === "pirate" || r.game_type === "snack" || r.game_type === "pinball").map((r) => Number(r.id));
   const pirateGames = (await sql`select game_id, status from uk_pirate_games where game_id = any(${miniIds})`) as { game_id: number; status: string }[];
   const pirateRows = (await sql`
     select pp.game_id, pp.kakao_id, p.nickname, p.profile_image,
@@ -464,6 +464,16 @@ export async function listPastGames(code: string, me: string, offset = 0) {
     where sp.game_id = any(${miniIds}) order by sp.joined_at, sp.kakao_id
   `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null; cut: number | null }[];
 
+  const pinballGames = (await sql`select game_id, result_order from uk_pinball_games where game_id = any(${miniIds})`) as {
+    game_id: number;
+    result_order: string[] | null;
+  }[];
+  const pinballRows = (await sql`
+    select bp.game_id, bp.kakao_id, p.nickname, p.profile_image
+    from uk_pinball_players bp join players p on p.kakao_id = bp.kakao_id
+    where bp.game_id = any(${miniIds})
+  `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null }[];
+
   const miniOf = (r: { id: number; game_type: GameType }): { parts: PastGame["participants"]; result: PastGame["miniResult"] } | null => {
     const id = Number(r.id);
     if (r.game_type === "pirate") {
@@ -474,6 +484,19 @@ export async function listPastGames(code: string, me: string, offset = 0) {
         result: {
           summary: g?.status === "success" ? "🎉 성공" : "🏴‍☠️ 실패",
           rows: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, value: `칼 ${x.stabs}개` })),
+        },
+      };
+    }
+    if (r.game_type === "pinball") {
+      const order = pinballGames.find((x) => Number(x.game_id) === id)?.result_order ?? [];
+      const rows = order
+        .map((k) => pinballRows.find((x) => Number(x.game_id) === id && x.kakao_id === k))
+        .filter((x): x is (typeof pinballRows)[number] => !!x);
+      return {
+        parts: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, image: x.profile_image })),
+        result: {
+          summary: `👑 ${rows[0]?.nickname ?? "친구"} 오늘의 주인공`,
+          rows: rows.map((x, i) => ({ kakaoId: x.kakao_id, nickname: x.nickname, value: i === 0 ? "👑 1등" : `${i + 1}등` })),
         },
       };
     }

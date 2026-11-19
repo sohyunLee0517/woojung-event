@@ -4,7 +4,7 @@ import { sendPush } from "@/lib/birthday-gacha/push";
 
 type GameRow = { id: number; game_type: keyof typeof LABEL; ref_code: string | null; room_name: string };
 
-const LABEL = { fanfare: "🌡️ 우정의 온도", gacha: "🎰 생일 가챠", pirate: "🏴‍☠️ 해적 무찌르기", snack: "🍪 과자 나눠먹기" } as const;
+const LABEL = { fanfare: "🌡️ 우정의 온도", gacha: "🎰 생일 가챠", pirate: "🏴‍☠️ 해적 무찌르기", snack: "🍪 과자 나눠먹기", pinball: "🎱 랜덤 핀볼" } as const;
 
 function gameUrl(code: string, g: GameRow) {
   if (g.game_type === "gacha") return `/birthday-gacha/g/${g.ref_code}`;
@@ -83,6 +83,7 @@ export async function nudgeGame(code: string, game: number | string, me: string)
       and not exists (select 1 from game_players gp where gp.game_code = ${g.ref_code} and gp.kakao_id = m.kakao_id)
       and not exists (select 1 from uk_pirate_players pp where pp.game_id = ${g.id} and pp.kakao_id = m.kakao_id)
       and not exists (select 1 from uk_snack_players sp where sp.game_id = ${g.id} and sp.kakao_id = m.kakao_id)
+      and not exists (select 1 from uk_pinball_players bp where bp.game_id = ${g.id} and bp.kakao_id = m.kakao_id)
   `) as { kakao_id: string }[];
   const who = await nickname(me);
   const sent = await sendAll(

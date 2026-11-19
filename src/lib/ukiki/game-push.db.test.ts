@@ -49,7 +49,7 @@ describe.skipIf(!hasDb)("게임 알림 (실제 DB)", () => {
     const n = await notifyNewGame(room, id, O);
     expect(n).toBe(2);
     expect(sent.map((s) => s.to).sort()).toEqual([A, B].sort());
-    expect(sent[0].title).toContain("빵빠레");
+    expect(sent[0].title).toContain("우정의 온도");
     expect(sent[0].title).toContain("테스트 알림방");
     expect(sent[0].url).toBe(`/r/${room}/fanfare/${id}`);
   });
