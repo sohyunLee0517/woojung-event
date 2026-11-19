@@ -114,7 +114,7 @@ export default function FanfareStage({
             >
               {myReady ? "✅ 준비완료 (취소하려면 눌러요)" : "🔥 준비완료"}
             </button>
-            {players.length < 2 && <p style={{ fontSize: 13, color: UK.yellow }}>2명부터 시작할 수 있어요</p>}
+            {players.length < 2 && <p style={{ fontSize: 13, color: UK.yellow }}>친구가 빵빠레에 들어오길 기다리는 중</p>}
             <button onClick={onClose} style={{ ...ghostButton, padding: "8px 14px", fontSize: 13, opacity: 0.7 }}>
               빵빠레 닫기
             </button>

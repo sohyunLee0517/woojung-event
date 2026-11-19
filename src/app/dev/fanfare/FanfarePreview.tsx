@@ -36,7 +36,7 @@ type Story = {
 const ready = (ids: string[]) => FRIENDS.map((p) => ({ ...p, ready: ids.includes(p.id) }));
 
 const STORIES: Story[] = [
-  { label: "혼자 (2명부터)", phase: "WAITING", players: [FRIENDS[0]] },
+  { label: "친구 입장 전", phase: "WAITING", players: [FRIENDS[0]] },
   { label: "대기", phase: "WAITING", players: ready([]) },
   { label: "나만 준비", phase: "WAITING", players: ready([ME]) },
   { label: "모두 준비", phase: "WAITING", players: ready([ME, "f1", "f2"]) },
