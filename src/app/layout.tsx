@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "우끼끼", statusBarStyle: "black-translucent" },
 };
 
-export const viewport: Viewport = { themeColor: "#0a0a0a" };
+// 아이폰은 입력칸 글자가 16px 보다 작으면 포커스될 때 화면을 확대한다 → 확대 배율을 1로 고정
+export const viewport: Viewport = { themeColor: "#0a0a0a", width: "device-width", initialScale: 1, maximumScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
