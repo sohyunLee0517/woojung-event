@@ -1,4 +1,4 @@
-import { CONTACT_EMAIL, LegalPage, listStyle, Section, stepStyle } from "@/components/ukiki/LegalPage";
+import { LegalPage, listStyle, MailLink, Section, stepStyle } from "@/components/ukiki/LegalPage";
 
 export const metadata = { title: "계정 삭제 안내 · 우끼끼" };
 
@@ -37,7 +37,7 @@ export default function AccountDeletionPage() {
 
       <Section title="앱에 들어갈 수 없을 때">
         <p>
-          {CONTACT_EMAIL} 로 &apos;우끼끼 계정 삭제&apos;라고 보내 주세요. 카카오 닉네임을 함께 알려 주시면 7일 안에 지워 드려요.
+          <MailLink subject="우끼끼 계정 삭제" /> 로 &apos;우끼끼 계정 삭제&apos;라고 보내 주세요. 카카오 닉네임을 함께 알려 주시면 7일 안에 지워 드려요.
         </p>
       </Section>
     </LegalPage>

@@ -1,4 +1,4 @@
-import { CONTACT_EMAIL, LegalPage, listStyle, Section } from "@/components/ukiki/LegalPage";
+import { LegalPage, listStyle, MailLink, Section } from "@/components/ukiki/LegalPage";
 
 export const metadata = { title: "개인정보처리방침 · 우끼끼" };
 
@@ -62,7 +62,9 @@ export default function PrivacyPage() {
             </a>
             를 봐 주세요.
           </li>
-          <li>그 밖의 요청은 {CONTACT_EMAIL} 로 보내 주세요.</li>
+          <li>
+            그 밖의 요청은 <MailLink subject="우끼끼 개인정보 문의" /> 로 보내 주세요.
+          </li>
         </ul>
       </Section>
 
