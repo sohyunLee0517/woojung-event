@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 // 개인정보처리방침·계정 삭제 안내 같은 공개 문서 (로그인 없이 볼 수 있다)
-export const CONTACT_EMAIL = "nonlyito@gmail.com";
+export const CONTACT_EMAIL = "ukiki.service@kakao.com";
 
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
   return (
