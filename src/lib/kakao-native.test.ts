@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { verifyKakaoAccessToken } from "./kakao-native";
+import { kakaoAppId, verifyKakaoAccessToken } from "./kakao-native";
 
 // 앱의 카카오 로그인(네이티브)이 넘겨준 access token 을 카카오에 직접 물어서 확인한다.
 const APP_ID = 1234;
@@ -99,5 +99,15 @@ describe("verifyKakaoAccessToken 거절 이유", () => {
       throw new Error("x");
     }) as unknown as typeof fetch;
     expect(await reasonOf("tok", APP_ID, boom)).toBe("network");
+  });
+});
+
+describe("kakaoAppId", () => {
+  it("환경 변수가 없거나 이상해도 우끼끼 카카오 앱 ID(공개값)를 쓴다", () => {
+    expect(kakaoAppId(undefined)).toBe(1654459);
+    expect(kakaoAppId("")).toBe(1654459);
+    expect(kakaoAppId('"1654459"')).toBe(1654459);
+    expect(kakaoAppId(" 1654459\n")).toBe(1654459);
+    expect(kakaoAppId("777")).toBe(777);
   });
 });

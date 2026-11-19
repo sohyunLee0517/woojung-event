@@ -1,7 +1,15 @@
 // 앱의 카카오 로그인(네이티브 SDK)이 넘겨준 access token 을 카카오에 직접 물어서 확인한다.
 // 다른 앱에서 받은 토큰으로 들어오지 못하게 app_id 가 우리 앱인지도 본다.
-/** 카카오 개발자 콘솔의 앱 ID (공개값). 다른 앱 토큰을 막는 데 쓴다. */
-export const KAKAO_APP_ID = Number(process.env.KAKAO_APP_ID ?? 0);
+/** 카카오 개발자 콘솔 '우끼끼' 앱 ID. 비밀값이 아니라서 환경 변수가 없으면 이 값을 쓴다. */
+const UKIKI_KAKAO_APP_ID = 1654459;
+
+export function kakaoAppId(raw: string | undefined) {
+  const n = Number(String(raw ?? "").replace(/["'\s]/g, ""));
+  return Number.isInteger(n) && n > 0 ? n : UKIKI_KAKAO_APP_ID;
+}
+
+/** 다른 앱에서 받은 토큰을 막는 데 쓴다. */
+export const KAKAO_APP_ID = kakaoAppId(process.env.KAKAO_APP_ID);
 
 export type KakaoNativeProfile = { kakaoId: string; nickname: string | null; image: string | null };
 
