@@ -82,6 +82,7 @@ export async function nudgeGame(code: string, game: number | string, me: string)
       and not exists (select 1 from uk_game_participants p where p.game_id = ${g.id} and p.kakao_id = m.kakao_id)
       and not exists (select 1 from game_players gp where gp.game_code = ${g.ref_code} and gp.kakao_id = m.kakao_id)
       and not exists (select 1 from uk_pirate_players pp where pp.game_id = ${g.id} and pp.kakao_id = m.kakao_id)
+      and not exists (select 1 from uk_snack_players sp where sp.game_id = ${g.id} and sp.kakao_id = m.kakao_id)
   `) as { kakao_id: string }[];
   const who = await nickname(me);
   const sent = await sendAll(

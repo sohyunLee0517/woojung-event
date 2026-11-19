@@ -379,6 +379,8 @@ export type PastGame = {
   outcome: "completed" | "aborted";
   /** 빵빠레 탭 순위 (결과를 저장한 경우) */
   fanfareResult: { kakaoId: string; nickname: string | null; taps: number; rank: number }[] | null;
+  /** 해적·과자 결과 (한 줄 요약 + 사람별) */
+  miniResult: { summary: string; rows: { kakaoId: string; nickname: string | null; value: string }[] } | null;
 };
 
 /**
@@ -399,6 +401,7 @@ export async function listPastGames(code: string, me: string, offset = 0) {
       where g.room_code = ${code}
         and (
           (g.game_type = 'fanfare' and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
+          or (g.game_type in ('pirate', 'snack') and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
           or (g.game_type = 'gacha'
               and exists (select 1 from capsules c where c.game_code = g.ref_code)
               and not exists (select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null))
@@ -441,7 +444,55 @@ export async function listPastGames(code: string, me: string, offset = 0) {
     minutes: number;
   }[];
 
+  const miniIds = page.items.filter((r) => r.game_type === "pirate" || r.game_type === "snack").map((r) => Number(r.id));
+  const pirateGames = (await sql`select game_id, status from uk_pirate_games where game_id = any(${miniIds})`) as { game_id: number; status: string }[];
+  const pirateRows = (await sql`
+    select pp.game_id, pp.kakao_id, p.nickname, p.profile_image,
+           (select count(*)::int from uk_pirate_stabs s where s.game_id = pp.game_id and s.kakao_id = pp.kakao_id) as stabs
+    from uk_pirate_players pp join players p on p.kakao_id = pp.kakao_id
+    where pp.game_id = any(${miniIds}) order by pp.joined_at, pp.kakao_id
+  `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null; stabs: number }[];
+  const snackGames = (await sql`select game_id, status, total, members from uk_snack_games where game_id = any(${miniIds})`) as {
+    game_id: number;
+    status: string;
+    total: number | null;
+    members: string[] | null;
+  }[];
+  const snackRows = (await sql`
+    select sp.game_id, sp.kakao_id, p.nickname, p.profile_image, sp.cut
+    from uk_snack_players sp join players p on p.kakao_id = sp.kakao_id
+    where sp.game_id = any(${miniIds}) order by sp.joined_at, sp.kakao_id
+  `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null; cut: number | null }[];
+
+  const miniOf = (r: { id: number; game_type: GameType }): { parts: PastGame["participants"]; result: PastGame["miniResult"] } | null => {
+    const id = Number(r.id);
+    if (r.game_type === "pirate") {
+      const g = pirateGames.find((x) => Number(x.game_id) === id);
+      const rows = pirateRows.filter((x) => Number(x.game_id) === id);
+      return {
+        parts: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, image: x.profile_image })),
+        result: {
+          summary: g?.status === "success" ? "🎉 성공" : "🏴‍☠️ 실패",
+          rows: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, value: `칼 ${x.stabs}개` })),
+        },
+      };
+    }
+    if (r.game_type === "snack") {
+      const g = snackGames.find((x) => Number(x.game_id) === id);
+      const rows = snackRows.filter((x) => Number(x.game_id) === id && (g?.members ?? []).includes(x.kakao_id));
+      return {
+        parts: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, image: x.profile_image })),
+        result: {
+          summary: g?.status === "fail" ? `💥 실패 (${g?.total}%)` : `🎯 팀 점수 ${g?.total ?? 0}점`,
+          rows: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, value: `${x.cut ?? 0}%` })),
+        },
+      };
+    }
+    return null;
+  };
+
   const items: PastGame[] = page.items.map((r) => {
+    const mini = miniOf(r);
     const isGacha = r.game_type === "gacha";
     const gps = gachaPlayers.filter((x) => x.game_code === r.ref_code);
     const parts = isGacha
@@ -457,12 +508,13 @@ export async function listPastGames(code: string, me: string, offset = 0) {
       refCode: r.ref_code,
       startedAt: new Date(r.created_at).toISOString(),
       endedAt: new Date(r.ended_at ?? r.created_at).toISOString(),
-      participants: parts,
+      participants: mini ? mini.parts : parts,
       gachaResult: isGacha
         ? gachaRanking(gps.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, money: x.money, minutes: x.minutes })))
         : null,
       outcome: r.outcome === "aborted" ? "aborted" : "completed",
-      fanfareResult: isGacha ? null : fanfareRanking(fanfareParts.filter((x) => Number(x.game_id) === Number(r.id))),
+      fanfareResult: isGacha || mini ? null : fanfareRanking(fanfareParts.filter((x) => Number(x.game_id) === Number(r.id))),
+      miniResult: mini ? mini.result : null,
     };
   });
   return { items, hasMore: page.hasMore, nextOffset: page.nextOffset };

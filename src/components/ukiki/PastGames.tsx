@@ -36,6 +36,7 @@ function PastGameCard({ game }: { game: PastGame }) {
           <span style={{ display: "block", fontSize: 12, opacity: 0.6 }}>
             {when(game.endedAt)} · 👥 {game.participants.length}
             {game.gachaResult?.[0] && ` · 👑 ${game.gachaResult[0].nickname ?? "?"}`}
+            {game.miniResult && ` · ${game.miniResult.summary}`}
             {game.type === "fanfare" && ` · 호스트 ${game.hostName ?? "?"}`}
           </span>
         </span>
@@ -43,7 +44,14 @@ function PastGameCard({ game }: { game: PastGame }) {
       </button>
       {open && (
         <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
-          {game.gachaResult
+          {game.miniResult
+            ? game.miniResult.rows.map((r) => (
+                <div key={r.kakaoId} style={{ display: "flex", gap: 8 }}>
+                  <span style={{ flex: 1 }}>{r.nickname ?? "?"}</span>
+                  <span>{r.value}</span>
+                </div>
+              ))
+            : game.gachaResult
             ? game.gachaResult.map((r) => (
                 <div key={r.kakaoId} style={{ display: "flex", gap: 8 }}>
                   <span style={{ width: 28, opacity: 0.7 }}>{r.badge || `${r.rank}등`}</span>
