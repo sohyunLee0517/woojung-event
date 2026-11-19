@@ -95,7 +95,7 @@ describe("fanfareCreateOutcome (방당 진행 중인 빵빠레는 1개)", () => 
     ).toEqual({
       kind: "conflict",
       active: { id: 3, hostKakaoId: "a", hostName: "소현" },
-      message: "소현님이 먼저 빵빠레를 열었어요",
+      message: "소현님이 먼저 우정의 온도를 열었어요",
       choices: ["leave", "join"],
     });
   });

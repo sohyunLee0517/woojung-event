@@ -4,7 +4,7 @@ import { sendPush } from "@/lib/birthday-gacha/push";
 
 type GameRow = { id: number; game_type: keyof typeof LABEL; ref_code: string | null; room_name: string };
 
-const LABEL = { fanfare: "🎉 빵빠레", gacha: "🎰 생일 가챠", pirate: "🏴‍☠️ 해적 무찌르기", snack: "🍪 과자 나눠먹기" } as const;
+const LABEL = { fanfare: "🌡️ 우정의 온도", gacha: "🎰 생일 가챠", pirate: "🏴‍☠️ 해적 무찌르기", snack: "🍪 과자 나눠먹기" } as const;
 
 function gameUrl(code: string, g: GameRow) {
   if (g.game_type === "gacha") return `/birthday-gacha/g/${g.ref_code}`;

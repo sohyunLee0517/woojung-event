@@ -123,9 +123,9 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     if (data?.kind === "created") router.push(fanfarePath(data.id));
     else if (data?.kind === "conflict")
       setConflict({ message: data.message, emoji: GAME_META.fanfare.emoji, href: fanfarePath(data.active.id) });
-    else if (data?.kind === "retry") setNotice("방금 빵빠레가 끝났어요. 다시 눌러 주세요.");
+    else if (data?.kind === "retry") setNotice("방금 우정의 온도가 끝났어요. 다시 눌러 주세요.");
     else if (data?.kind === "disabled") setNotice("지금은 쉬고 있는 게임이에요.");
-    else setNotice("빵빠레를 열지 못했어요.");
+    else setNotice("우정의 온도를 열지 못했어요.");
     load();
   };
 
@@ -393,7 +393,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             <Link href={fanfarePath(fanfare.id)} style={{ ...gameCard, borderColor: "rgba(254,229,0,.5)" }}>
               <span style={{ fontSize: 26 }}>{GAME_META.fanfare.emoji}</span>
               <span style={{ flex: 1 }}>
-                <b>빵빠레</b>
+                <b>우정의 온도</b>
                 <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>
                   {LEGACY.fanfareHost
                     ? fanfare.hostKakaoId === me
@@ -502,7 +502,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             </p>
             {fanfare?.hostKakaoId === me && (
               <div style={{ padding: "10px 12px", borderRadius: 12, background: "rgba(220,38,38,.15)", border: "1px solid rgba(220,38,38,.55)", fontSize: 13, lineHeight: 1.5 }}>
-                ⚠️ 내가 연 <b>빵빠레가 진행 중</b>이에요.
+                ⚠️ 내가 연 <b>우정의 온도가 진행 중</b>이에요.
                 <br />
                 나가면 게임이 <b>중단</b>되고 지난 게임에 &apos;중단&apos;으로 기록돼요.
               </div>

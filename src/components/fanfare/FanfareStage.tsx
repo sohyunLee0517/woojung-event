@@ -60,10 +60,10 @@ export default function FanfareStage({
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", color: "#fff", fontFamily: "sans-serif", userSelect: "none" }}>
       <ReadyStyles />
       <div style={{ maxWidth: 480, width: "100%", margin: "0 auto", padding: 16, flex: 1, display: "flex", flexDirection: "column" }}>
-        <TopBar backHref={backHref} title="🎉 빵빠레" sub={<p style={{ fontSize: 12, opacity: 0.6 }}>👥 {players.length}명 참여</p>} />
+        <TopBar backHref={backHref} title="🌡️ 우정의 온도" sub={<p style={{ fontSize: 12, opacity: 0.6 }}>👥 {players.length}명 참여</p>} />
 
         {phase === "WAITING" && (
-          <ReadyWaiting players={players} meId={meId} emoji="🌡️" waitingFor="친구가 빵빠레에 들어오길 기다리는 중" onReady={onReady} onNudge={onNudge} />
+          <ReadyWaiting players={players} meId={meId} emoji="🌡️" waitingFor="친구가 들어오길 기다리는 중" onReady={onReady} onNudge={onNudge} />
         )}
 
         {phase === "COUNTDOWN" && <CountdownView count={count} hint="🔥 버튼을 마구 눌러 온도를 올려요" />}

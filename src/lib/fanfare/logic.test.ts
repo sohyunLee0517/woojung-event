@@ -108,7 +108,7 @@ describe("단계 (서버 시각 기준 — 누가 새로고침해도 이어서 �
 
 describe("hostEndAction (호스트의 끝내기 버튼)", () => {
   it("시작 전에는 '닫기' (기록에 안 남음)", () => {
-    expect(hostEndAction("WAITING")).toEqual({ outcome: "cancelled", label: "빵빠레 닫기" });
+    expect(hostEndAction("WAITING")).toEqual({ outcome: "cancelled", label: "우정의 온도 닫기" });
   });
 
   it("시작한 뒤 공개 전까지는 '중단' (기록에 중단으로 남음)", () => {
@@ -118,7 +118,7 @@ describe("hostEndAction (호스트의 끝내기 버튼)", () => {
   });
 
   it("공개 뒤에는 '끝내기' (완료 기록)", () => {
-    expect(hostEndAction("REVEAL")).toEqual({ outcome: "completed", label: "빵빠레 끝내기" });
+    expect(hostEndAction("REVEAL")).toEqual({ outcome: "completed", label: "우정의 온도 끝내기" });
   });
 });
 

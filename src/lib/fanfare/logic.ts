@@ -113,8 +113,8 @@ export type FanfareOutcome = "completed" | "aborted" | "cancelled";
 
 /** 호스트의 끝내기 버튼: 시작 전 '닫기'(기록 없음) · 진행 중 '중단'(중단 기록) · 공개 뒤 '끝내기'(완료) */
 export function hostEndAction(phase: FanfarePhase): { outcome: FanfareOutcome; label: string } {
-  if (phase === "WAITING") return { outcome: "cancelled", label: "빵빠레 닫기" };
-  if (phase === "REVEAL") return { outcome: "completed", label: "빵빠레 끝내기" };
+  if (phase === "WAITING") return { outcome: "cancelled", label: "우정의 온도 닫기" };
+  if (phase === "REVEAL") return { outcome: "completed", label: "우정의 온도 끝내기" };
   return { outcome: "aborted", label: "중단하기" };
 }
 

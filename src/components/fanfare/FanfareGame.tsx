@@ -372,7 +372,7 @@ export default function FanfareGame({
     return (
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "#fff", padding: 24, textAlign: "center" }}>
         <p style={{ fontSize: 40 }}>🏁</p>
-        <p style={{ fontWeight: 800 }}>빵빠레가 끝났어요</p>
+        <p style={{ fontWeight: 800 }}>우정의 온도가 끝났어요</p>
         <p style={{ fontSize: 13, opacity: 0.6 }}>결과는 방의 &apos;지난 게임&apos;에서 볼 수 있어요</p>
         <a href={`/r/${roomCode}`} style={{ ...primaryButton, textDecoration: "none" }}>
           방으로 돌아가기
@@ -427,7 +427,7 @@ export default function FanfareGame({
   const header = (
     <TopBar
       backHref={`/r/${roomCode}`}
-      title="🎉 빵빠레"
+      title="🌡️ 우정의 온도"
       sub={
         <p style={{ fontSize: 12, opacity: 0.6 }}>
           {reveal && (isHost ? "내가 호스트 · " : `호스트 ${hostName} · `)}👥 {playerList.length}명 참여

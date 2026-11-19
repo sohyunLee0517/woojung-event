@@ -82,7 +82,7 @@ export function fanfareCreateOutcome(input: {
   return {
     kind: "conflict",
     active: input.active,
-    message: `${input.active.hostName ?? "다른 친구"}님이 먼저 빵빠레를 열었어요`,
+    message: `${input.active.hostName ?? "다른 친구"}님이 먼저 우정의 온도를 열었어요`,
     choices: ["leave", "join"],
   };
 }

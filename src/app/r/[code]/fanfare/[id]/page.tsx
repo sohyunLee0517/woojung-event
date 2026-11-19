@@ -34,10 +34,10 @@ export default async function FanfarePage({
     return (
       <main style={pageStyle}>
         <div style={{ ...columnStyle, minHeight: "100%" }}>
-          <TopBar backHref={`/r/${code}`} title="🎉 빵빠레" />
+          <TopBar backHref={`/r/${code}`} title="🌡️ 우정의 온도" />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 8, paddingBottom: 80 }}>
             <p style={{ fontSize: 40 }}>🏁</p>
-            <p style={{ fontWeight: 700 }}>끝난 빵빠레예요</p>
+            <p style={{ fontWeight: 700 }}>끝난 우정의 온도예요</p>
             <p style={{ fontSize: 13, opacity: 0.6 }}>결과는 방의 &apos;지난 게임&apos;에서 볼 수 있어요</p>
           </div>
         </div>

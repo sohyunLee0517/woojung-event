@@ -38,7 +38,7 @@ export default async function AppDownloadPage() {
         <section style={{ ...card, alignItems: "center", textAlign: "center" }}>
           <p style={{ fontSize: 48 }}>🐵</p>
           <p style={{ fontSize: 18, fontWeight: 800 }}>우끼끼 · 우리끼리</p>
-          <p style={{ fontSize: 13, opacity: 0.7 }}>퀴즈 알림, 방 지도 위치, 빵빠레 카메라를 앱에서 더 편하게</p>
+          <p style={{ fontSize: 13, opacity: 0.7 }}>퀴즈 알림, 방 지도 위치, 우정의 온도 게임를 앱에서 더 편하게</p>
         </section>
 
         {plan.kind === "already" && (
