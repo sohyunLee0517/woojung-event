@@ -40,7 +40,7 @@ export default function KakaoLoginButton({ next, webLogin }: { next: string; web
     const res = await signIn("kakao-native", { accessToken: r.accessToken, redirect: false });
     if (res?.error) {
       setBusy(false);
-      setError("카카오 로그인을 확인하지 못했어요. 다시 눌러 주세요.");
+      setError(`카카오 로그인을 확인하지 못했어요. 다시 눌러 주세요. (${res.code ?? res.error})`);
       return;
     }
     location.href = next;

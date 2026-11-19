@@ -65,3 +65,39 @@ describe("verifyKakaoAccessToken", () => {
     expect(await verifyKakaoAccessToken("tok", { appId: APP_ID, fetchImpl: f })).toBeNull();
   });
 });
+
+describe("verifyKakaoAccessToken 거절 이유", () => {
+  async function reasonOf(token: string, appId: number, f: typeof fetch) {
+    let reason: string | null = null;
+    await verifyKakaoAccessToken(token, { appId, fetchImpl: f, onReject: (r) => (reason = r) });
+    return reason;
+  }
+
+  it("왜 거절했는지 짧은 코드로 알려 준다 (휴대폰에서 원인 확인용)", async () => {
+    const never = vi.fn() as unknown as typeof fetch;
+    expect(await reasonOf("", APP_ID, never)).toBe("no_token");
+    expect(await reasonOf("tok", 0, never)).toBe("no_app_id");
+    expect(await reasonOf("tok", APP_ID, fakeFetch({ [INFO]: { status: 401, body: {} } }))).toBe("info_401");
+    expect(await reasonOf("tok", APP_ID, fakeFetch({ [INFO]: { status: 200, body: { id: 1, app_id: 999 } } }))).toBe(
+      "app_id_999",
+    );
+    expect(
+      await reasonOf(
+        "tok",
+        APP_ID,
+        fakeFetch({ [INFO]: { status: 200, body: { id: 1, app_id: APP_ID } }, [ME]: { status: 403, body: {} } }),
+      ),
+    ).toBe("me_403");
+    expect(
+      await reasonOf(
+        "tok",
+        APP_ID,
+        fakeFetch({ [INFO]: { status: 200, body: { id: 1, app_id: APP_ID } }, [ME]: { status: 200, body: { id: 2 } } }),
+      ),
+    ).toBe("id_mismatch");
+    const boom = vi.fn(async () => {
+      throw new Error("x");
+    }) as unknown as typeof fetch;
+    expect(await reasonOf("tok", APP_ID, boom)).toBe("network");
+  });
+});

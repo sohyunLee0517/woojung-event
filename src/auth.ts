@@ -1,8 +1,17 @@
 import NextAuth from "next-auth";
 import Kakao from "next-auth/providers/kakao";
 import Credentials from "next-auth/providers/credentials";
+import { CredentialsSignin } from "next-auth";
 import { KAKAO_APP_ID, verifyKakaoAccessToken } from "@/lib/kakao-native";
 import { upsertPlayer } from "@/lib/players";
+
+// 앱 로그인 거절 이유를 화면까지 알려 준다 (예: kakao_app_id_123). 토큰·개인정보는 담지 않는다.
+class KakaoNativeRejected extends CredentialsSignin {
+  constructor(reason: string) {
+    super();
+    this.code = `kakao_${reason}`;
+  }
+}
 
 // AUTH_KAKAO_ID / AUTH_KAKAO_SECRET 환경 변수를 자동으로 읽는다.
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -13,8 +22,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       id: "kakao-native",
       credentials: { accessToken: {} },
       async authorize(c) {
-        const p = await verifyKakaoAccessToken(String(c?.accessToken ?? ""), { appId: KAKAO_APP_ID });
-        return p ? { id: p.kakaoId, name: p.nickname, image: p.image } : null;
+        let reason = "unknown";
+        const p = await verifyKakaoAccessToken(String(c?.accessToken ?? ""), {
+          appId: KAKAO_APP_ID,
+          onReject: (r) => (reason = r),
+        });
+        if (!p) {
+          console.error("[kakao-native] 로그인 거절", reason);
+          throw new KakaoNativeRejected(reason);
+        }
+        return { id: p.kakaoId, name: p.nickname, image: p.image };
       },
     }),
   ],
