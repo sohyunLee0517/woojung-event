@@ -2,7 +2,7 @@
 import { getSql } from "@/lib/db";
 import type { GameType } from "@/lib/ukiki/rules";
 
-export const GAME_TYPES: GameType[] = ["fanfare", "gacha"];
+export const GAME_TYPES: GameType[] = ["fanfare", "gacha", "pirate", "snack"];
 const gameKey = (t: GameType) => `game:${t}`;
 
 export async function getFlags(keys: string[]): Promise<Record<string, boolean>> {
@@ -24,7 +24,7 @@ export async function setFlag(key: string, enabled: boolean, by: string) {
 /** 게임별로 켜져 있는지 */
 export async function enabledGames(): Promise<Record<GameType, boolean>> {
   const flags = await getFlags(GAME_TYPES.map(gameKey));
-  return { fanfare: flags[gameKey("fanfare")], gacha: flags[gameKey("gacha")] };
+  return Object.fromEntries(GAME_TYPES.map((t) => [t, flags[gameKey(t)]])) as Record<GameType, boolean>;
 }
 
 export async function setGameEnabled(type: GameType, enabled: boolean, by: string) {

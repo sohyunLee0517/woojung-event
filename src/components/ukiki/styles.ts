@@ -91,4 +91,6 @@ export const inputStyle: CSSProperties = {
 export const GAME_META = {
   fanfare: { emoji: "🎉", label: "빵빠레", desc: "다 같이 눌러서 우정 온도 100도 만들기" },
   gacha: { emoji: "🎰", label: "생일 가챠", desc: "캡슐을 뽑아 등급별 선물 받기" },
+  pirate: { emoji: "🏴‍☠️", label: "해적 무찌르기", desc: "돌아가며 칼을 꽂아요. 해적이 튀어나오면 실패!" },
+  snack: { emoji: "🍪", label: "과자 나눠먹기", desc: "각자 몰래 잘라 가요. 합이 100을 넘으면 실패!" },
 } as const;

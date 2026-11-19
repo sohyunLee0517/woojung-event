@@ -324,3 +324,41 @@ alter table games add column if not exists started_at timestamptz
 update games g set started_at = g.created_at
 where g.started_at is null and exists (select 1 from capsules c where c.game_code = g.code and c.drawn_by is not null)
 ;
+
+-- ===== 해적 무찌르기 / 과자 나눠먹기 =====
+alter table uk_room_games drop constraint if exists uk_room_games_game_type_check
+;
+alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack'))
+;
+create unique index if not exists uk_one_active_pirate
+  on uk_room_games (room_code) where game_type = 'pirate' and status = 'active'
+;
+
+-- 해적 한 판. 함정 구멍은 끝날 때까지 화면에 내려주지 않는다.
+create table if not exists uk_pirate_games (
+  game_id    bigint      primary key references uk_room_games(id) on delete cascade,
+  trap_hole  int         not null,
+  started_at timestamptz,
+  turn_order text[],
+  status     text        not null default 'playing' check (status in ('playing', 'fail', 'success'))
+);
+
+-- 해적 참여자 (입장 순서 = 칼 꽂는 순서)
+create table if not exists uk_pirate_players (
+  game_id   bigint      not null references uk_room_games(id) on delete cascade,
+  kakao_id  text        not null,
+  ready     boolean     not null default false,
+  joined_at timestamptz not null default clock_timestamp(),
+  primary key (game_id, kakao_id)
+);
+
+-- 꽂은 칼. seq(몇 번째 칼)와 hole(구멍)이 겹치지 않게 해서 동시에 눌러도 하나만 들어간다.
+create table if not exists uk_pirate_stabs (
+  game_id  bigint      not null references uk_room_games(id) on delete cascade,
+  seq      int         not null,
+  hole     int         not null,
+  kakao_id text        not null,
+  at       timestamptz not null default now(),
+  primary key (game_id, seq),
+  unique (game_id, hole)
+);
