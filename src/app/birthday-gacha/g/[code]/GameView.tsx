@@ -22,6 +22,7 @@ import InstallCard from "./InstallCard";
 import PushCard from "./PushCard";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { roomMapHref } from "@/lib/birthday-gacha/nav";
+import { LEGACY } from "@/lib/ukiki/legacy";
 
 type DrawnResult = { grade: Grade; amount: number; minutes: number };
 // 화면 가운데에 잠깐 떴다 사라지는 알림
@@ -135,15 +136,17 @@ function RulesSheet({ onClose }: { onClose: () => void }) {
         <section>
           <h3 style={ruleHeading}>🎰 뽑기</h3>
           <p>캡슐은 9개(3명 × 3번)이고, 방을 만들 때 섞여요. 뽑기 전에는 누구도 내용을 몰라요.</p>
-          <p>뽑기권 1장으로 캡슐 1개를 열어요. 한 사람당 최대 {MAX_DRAWS_PER_PLAYER}번 뽑아요.</p>
+          <p>참가하면 뽑기권 {TICKETS_ON_JOIN}장을 받아요. 뽑기권 1장으로 캡슐 1개를 열어요. 한 사람당 최대 {MAX_DRAWS_PER_PLAYER}번 뽑아요.</p>
         </section>
-        <section>
-          <h3 style={ruleHeading}>🧩 특수카드 퀴즈</h3>
-          <p>참가하면 뽑기권 {TICKETS_ON_JOIN}장을 받아요. 특수카드는 퀴즈로 얻어요.</p>
-          <p>하루를 0–2시, 2–4시 … 22–24시 2시간 구간으로 나눠요(한국·일본 시간).</p>
-          <p>구간마다 퀴즈 1번만 풀 수 있어요. 틀려도 그 구간은 끝이에요.</p>
-          <p>맞히면 특수카드 1장을 무작위로 받아요. 예) 21:59에 풀었으면 1분 뒤 22시부터 다시 풀 수 있어요.</p>
-        </section>
+        {LEGACY.quizCards && (
+          <section>
+            <h3 style={ruleHeading}>🧩 특수카드 퀴즈</h3>
+            <p>참가하면 뽑기권 {TICKETS_ON_JOIN}장을 받아요. 특수카드는 퀴즈로 얻어요.</p>
+            <p>하루를 0–2시, 2–4시 … 22–24시 2시간 구간으로 나눠요(한국·일본 시간).</p>
+            <p>구간마다 퀴즈 1번만 풀 수 있어요. 틀려도 그 구간은 끝이에요.</p>
+            <p>맞히면 특수카드 1장을 무작위로 받아요. 예) 21:59에 풀었으면 1분 뒤 22시부터 다시 풀 수 있어요.</p>
+          </section>
+        )}
         <section>
           <h3 style={ruleHeading}>💎 캡슐 구성</h3>
           {grades.map(({ g, items }) => (
@@ -157,24 +160,28 @@ function RulesSheet({ onClose }: { onClose: () => void }) {
           ))}
           <p style={{ opacity: 0.7 }}>금액이 클수록 쇼핑 시간이 짧아요. 3개를 뽑으면 합계는 항상 ¥8,500~¥12,500이에요.</p>
         </section>
-        <section>
-          <h3 style={ruleHeading}>🏴‍☠️ 강탈 (준비 중)</h3>
-          <p>
-            금액은 {yen(MONEY_MIN)}~{yen(MONEY_MAX)} 사이에서만 움직여요.
-          </p>
-          <p>· {yen(MONEY_MIN)} 이하인 사람한테는 뺏을 수 없어요.</p>
-          <p>· {yen(MONEY_MAX)} 이상이면 뺏을 수 없어요.</p>
-          <p>· 넘치는 만큼은 깎여요. 예) ¥12,000인 사람이 ¥2,000을 뺏으면 ¥1,000만 가져와요.</p>
-        </section>
-        <section>
-          <h3 style={ruleHeading}>🃏 특수카드 (사용은 준비 중)</h3>
-          {(Object.keys(CARD_META) as CardType[]).map((t) => (
-            <p key={t}>
-              {CARD_META[t].emoji} <b>{CARD_META[t].name}</b> · {CARD_META[t].desc}
+        {LEGACY.quizCards && (
+          <section>
+            <h3 style={ruleHeading}>🏴‍☠️ 강탈 (준비 중)</h3>
+            <p>
+              금액은 {yen(MONEY_MIN)}~{yen(MONEY_MAX)} 사이에서만 움직여요.
             </p>
-          ))}
-          <p style={{ opacity: 0.7 }}>카드는 야외에서, 상대가 50m 안에 있을 때만 쓸 수 있어요.</p>
-        </section>
+            <p>· {yen(MONEY_MIN)} 이하인 사람한테는 뺏을 수 없어요.</p>
+            <p>· {yen(MONEY_MAX)} 이상이면 뺏을 수 없어요.</p>
+            <p>· 넘치는 만큼은 깎여요. 예) ¥12,000인 사람이 ¥2,000을 뺏으면 ¥1,000만 가져와요.</p>
+          </section>
+        )}
+        {LEGACY.quizCards && (
+          <section>
+            <h3 style={ruleHeading}>🃏 특수카드 (사용은 준비 중)</h3>
+            {(Object.keys(CARD_META) as CardType[]).map((t) => (
+              <p key={t}>
+                {CARD_META[t].emoji} <b>{CARD_META[t].name}</b> · {CARD_META[t].desc}
+              </p>
+            ))}
+            <p style={{ opacity: 0.7 }}>카드는 야외에서, 상대가 50m 안에 있을 때만 쓸 수 있어요.</p>
+          </section>
+        )}
       </div>
     </Sheet>
   );
@@ -199,7 +206,7 @@ function PlayersSheet({ state, onClose }: { state: GameState; onClose: () => voi
                 {p.isHost && " 👑"}
               </p>
               <p style={{ fontSize: 13, opacity: 0.7 }}>
-                {p.online ? "🟢 온라인" : "⚪ 오프라인"} · 🎟️ {p.tickets}장 · 🃏 {p.cardCount}장
+                {p.online ? "🟢 온라인" : "⚪ 오프라인"} · 🎟️ {p.tickets}장{LEGACY.quizCards && ` · 🃏 ${p.cardCount}장`}
               </p>
             </div>
             <div style={{ textAlign: "right", fontSize: 14 }}>
@@ -744,12 +751,12 @@ export default function GameView({ code }: { code: string }) {
 
         {/* 내 상태 */}
         {me && (
-          <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+          <section style={{ display: "grid", gridTemplateColumns: `repeat(${LEGACY.quizCards ? 4 : 3}, 1fr)`, gap: 8 }}>
             {[
               { label: "💴 금액", value: yen(me.money) },
               { label: "⏱️ 시간", value: `${me.minutes}분` },
               { label: "🎟️ 뽑기권", value: `${me.tickets}장` },
-              { label: "🃏 카드", value: `${state?.myCards.length ?? 0}장` },
+              ...(LEGACY.quizCards ? [{ label: "🃏 카드", value: `${state?.myCards.length ?? 0}장` }] : []),
             ].map((s) => (
               <div key={s.label} style={{ padding: "10px 6px", borderRadius: 14, background: "rgba(255,255,255,.06)", textAlign: "center" }}>
                 <p style={{ fontSize: 11, opacity: 0.7 }}>{s.label}</p>
@@ -760,14 +767,14 @@ export default function GameView({ code }: { code: string }) {
         )}
 
         {/* 뽑기권 퀴즈 */}
-        {me && state?.quiz && <QuizCard quiz={state.quiz} now={now + clockOffset} onOpen={openQuiz} />}
+        {LEGACY.quizCards && me && state?.quiz && <QuizCard quiz={state.quiz} now={now + clockOffset} onOpen={openQuiz} />}
 
         {/* 푸시 알림 */}
         {me && <InstallCard onNotice={notify} buttonStyle={smallButton} />}
         {me && <PushCard code={code} onNotice={notify} buttonStyle={smallButton} />}
 
         {/* 내 특수카드 */}
-        {me && state && state.myCards.length > 0 && (
+        {LEGACY.quizCards && me && state && state.myCards.length > 0 && (
           <section>
             <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>🃏 내 특수카드</h2>
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
@@ -907,7 +914,7 @@ export default function GameView({ code }: { code: string }) {
       )}
       {sheet === "rules" && <RulesSheet onClose={() => setSheet(null)} />}
       {sheet === "players" && state && <PlayersSheet state={state} onClose={() => setSheet(null)} />}
-      {sheet === "quiz" && (
+      {LEGACY.quizCards && sheet === "quiz" && (
         <QuizSheet
           quiz={quizData}
           result={quizResult}

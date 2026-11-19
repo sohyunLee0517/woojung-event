@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { normalizeCode } from "@/lib/birthday-gacha/games";
 import { answerQuiz, startQuiz } from "@/lib/birthday-gacha/quiz";
+import { LEGACY } from "@/lib/ukiki/legacy";
 
 // body: { action: "start" } → 이번 구간 문제 받기
 //       { action: "answer", choice: 0~3 } → 답 제출
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
+  if (!LEGACY.quizCards) return NextResponse.json({ error: "legacy" }, { status: 410 });
   const session = await auth();
   const me = session?.user?.id;
   if (!me) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

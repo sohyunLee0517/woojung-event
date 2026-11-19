@@ -14,6 +14,7 @@ import {
   isOutdoorFix,
 } from "@/lib/birthday-gacha/geo";
 import type { PlayerLocation } from "@/lib/birthday-gacha/locations";
+import { LEGACY } from "@/lib/ukiki/legacy";
 
 type Fix = { lat: number; lng: number; accuracy: number };
 
@@ -315,8 +316,8 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
           <p>내 위치를 찾는 중…</p>
         ) : (
           <p>
-            {outdoor ? "🟢 야외" : "🟠 실내 또는 위치 부정확"} · 오차 ±{Math.round(myFix.accuracy)}m
-            {!outdoor && (
+            {LEGACY.mapAttack && (outdoor ? "🟢 야외 · " : "🟠 실내 또는 위치 부정확 · ")}내 위치 오차 ±{Math.round(myFix.accuracy)}m
+            {LEGACY.mapAttack && !outdoor && (
               <span style={{ opacity: 0.7 }}> (±{OUTDOOR_MAX_ACCURACY_M}m 이하일 때만 공격 가능)</span>
             )}
           </p>
@@ -338,12 +339,14 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
                     {secondsAgo(p.updatedAt) <= ONLINE_WITHIN_S
                       ? "접속 중"
                       : `${Math.floor(secondsAgo(p.updatedAt) / 60)}분 전`}
-                    {!isOutdoorFix(p.accuracy) && " · 실내"}
+                    {LEGACY.mapAttack && !isOutdoorFix(p.accuracy) && " · 실내"}
                   </span>
                 </span>
-                <span style={{ color: attackable ? "#22c55e" : "#888", whiteSpace: "nowrap" }}>
-                  {attackable ? "⚔️ 공격 가능" : `${ATTACK_RANGE_M}m 밖`}
-                </span>
+                {LEGACY.mapAttack && (
+                  <span style={{ color: attackable ? "#22c55e" : "#888", whiteSpace: "nowrap" }}>
+                    {attackable ? "⚔️ 공격 가능" : `${ATTACK_RANGE_M}m 밖`}
+                  </span>
+                )}
               </div>
             );
           })}
