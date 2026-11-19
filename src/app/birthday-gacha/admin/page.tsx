@@ -9,6 +9,7 @@ import BackButton from "./BackButton";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { enabledGames, GAME_TYPES, setGameEnabled } from "@/lib/ukiki/features";
 import { GAME_META } from "@/components/ukiki/styles";
+import Toggle from "@/components/ukiki/Toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -105,13 +106,8 @@ export default async function AdminPage() {
               >
                 <span style={{ fontSize: 22 }}>{GAME_META[type].emoji}</span>
                 <span style={{ flex: 1, fontWeight: 700 }}>{GAME_META[type].label}</span>
-                <button
-                  type="submit"
-                  aria-label={`${GAME_META[type].label} ${on ? "끄기" : "켜기"}`}
-                  style={{ ...button, minWidth: 72, background: on ? "#22c55e" : "rgba(255,255,255,.12)", color: on ? "#052e16" : "#fff" }}
-                >
-                  {on ? "켜짐" : "꺼짐"}
-                </button>
+                <span style={{ fontSize: 12, opacity: 0.6 }}>{on ? "켜짐" : "꺼짐"}</span>
+                <Toggle submit checked={on} label={GAME_META[type].label} />
               </form>
             );
           })}
