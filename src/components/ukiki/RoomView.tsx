@@ -48,7 +48,7 @@ function Avatar({ src, online, size = 34 }: { src: string | null; online: boolea
 export default function RoomView({ initial, me }: { initial: RoomDetail; me: string }) {
   const router = useRouter();
   const [room, setRoom] = useState(initial);
-  const [busy, setBusy] = useState<"fanfare" | "gacha" | null>(null);
+  const [busy, setBusy] = useState<"fanfare" | "gacha" | "pirate" | null>(null);
   const [conflict, setConflict] = useState<{ message: string; emoji: string; href: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -129,6 +129,24 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     load();
   };
 
+  const pirateGamePath = (id: number) => `/r/${room.code}/pirate/${id}`;
+  const openPirate = async () => {
+    if (busy) return;
+    setBusy("pirate");
+    const res = await fetch(`/api/ukiki/rooms/${room.code}/pirate`, { method: "POST" }).catch(() => null);
+    const data = res
+      ? ((await res.json()) as { kind: "created"; id: number } | { kind: "conflict"; id: number; message: string } | { kind: string })
+      : null;
+    setBusy(null);
+    if (data?.kind === "created" && "id" in data) router.push(pirateGamePath(data.id));
+    else if (data?.kind === "conflict" && "message" in data)
+      setConflict({ message: data.message, emoji: GAME_META.pirate.emoji, href: pirateGamePath(data.id) });
+    else if (data?.kind === "retry") setNotice("방금 해적 게임이 끝났어요. 다시 눌러 주세요.");
+    else if (data?.kind === "disabled") setNotice("지금은 쉬고 있는 게임이에요.");
+    else setNotice("해적 무찌르기를 열지 못했어요.");
+    load();
+  };
+
   const openGacha = async () => {
     if (busy) return;
     setBusy("gacha");
@@ -169,6 +187,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     void open();
   };
   const gachas = room.games.filter((g) => g.type === "gacha");
+  const pirates = room.games.filter((g) => g.type === "pirate");
   const onlineCount = room.members.filter((m) => m.online).length;
 
   return (
@@ -352,7 +371,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           <>
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800 }}>🔥 진행 중</h2>
-          {!fanfare && gachas.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 열린 게임이 없어요. 새 게임을 만들어 보세요!</p>}
+          {!fanfare && gachas.length === 0 && pirates.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 열린 게임이 없어요. 새 게임을 만들어 보세요!</p>}
           {fanfare && (
             <Link href={fanfarePath(fanfare.id)} style={{ ...gameCard, borderColor: "rgba(254,229,0,.5)" }}>
               <span style={{ fontSize: 26 }}>{GAME_META.fanfare.emoji}</span>
@@ -379,6 +398,16 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                 <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{g.hostName ?? "친구"}님이 열었어요</span>
               </span>
               <span style={ghostButton}>입장</span>
+            </Link>
+          ))}
+          {pirates.map((g) => (
+            <Link key={g.id} href={pirateGamePath(g.id)} style={gameCard}>
+              <span style={{ fontSize: 26 }}>{GAME_META.pirate.emoji}</span>
+              <span style={{ flex: 1 }}>
+                <b>{GAME_META.pirate.label}</b>
+                <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{g.hostName ?? "친구"}님이 열었어요</span>
+              </span>
+              <span style={ghostButton}>참여</span>
             </Link>
           ))}
         </section>
@@ -477,6 +506,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
               [
                 ["fanfare", openFanfare],
                 ["gacha", openGacha],
+                ["pirate", openPirate],
               ] as const
             )
               .filter(([type]) => room.enabledGames?.[type] !== false)

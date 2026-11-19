@@ -38,6 +38,20 @@ describe("앱과 메시지 주고받기", () => {
     expect(postToApp({ type: "logout" }, {})).toBe(false);
   });
 
+  it("안드로이드처럼 postMessage 가 자기 객체에 묶여 있어야 하는 경우에도 보낸다", async () => {
+    const { postToApp } = await import("./app-bridge");
+    // 안드로이드 웹뷰의 postMessage 는 this 가 ReactNativeWebView 가 아니면 'Illegal invocation' 으로 실패한다
+    const bridge = {
+      sent: [] as string[],
+      postMessage(this: { sent: string[] } | undefined, m: string) {
+        if (this !== bridge) throw new TypeError("Illegal invocation");
+        this.sent.push(m);
+      },
+    };
+    expect(postToApp({ type: "logout" }, { ReactNativeWebView: bridge })).toBe(true);
+    expect(bridge.sent).toEqual([JSON.stringify({ type: "logout" })]);
+  });
+
   it("카카오 앱 로그인을 부탁하면 앱이 돌려준 토큰으로 끝난다", async () => {
     const { requestNativeKakaoLogin } = await import("./app-bridge");
     const sent: string[] = [];

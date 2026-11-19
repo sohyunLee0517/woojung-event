@@ -34,9 +34,10 @@ function bridgeWindow(w?: unknown): BridgeWindow | undefined {
 }
 
 export function postToApp(msg: AppMessage, w?: unknown): boolean {
-  const post = bridgeWindow(w)?.ReactNativeWebView?.postMessage;
-  if (!post) return false;
-  post(JSON.stringify(msg));
+  const rn = bridgeWindow(w)?.ReactNativeWebView;
+  if (!rn?.postMessage) return false;
+  // 안드로이드 웹뷰의 postMessage 는 떼어 내서 부르면 'Illegal invocation' 으로 조용히 실패한다 → 객체에 붙여 부른다
+  rn.postMessage(JSON.stringify(msg));
   return true;
 }
 
