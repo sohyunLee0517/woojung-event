@@ -66,6 +66,12 @@ export default function ProfileMenu({
               </button>
             </form>
             <a
+              href="/privacy"
+              style={{ display: "block", padding: "10px 12px", borderRadius: 8, color: "rgba(255,255,255,.6)", fontSize: 13, textDecoration: "none" }}
+            >
+              개인정보처리방침
+            </a>
+            <a
               href="/account"
               style={{ display: "block", padding: "10px 12px", borderRadius: 8, color: "rgba(255,255,255,.6)", fontSize: 13, textDecoration: "none" }}
             >

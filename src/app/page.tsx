@@ -61,6 +61,13 @@ export default async function Lobby({ searchParams }: { searchParams: Promise<{ 
               await signIn("kakao", { redirectTo: safeNextPath(next) });
             }}
           />
+          <p style={{ textAlign: "center", fontSize: 12, opacity: 0.5 }}>
+            로그인하면{" "}
+            <Link href="/privacy" style={{ color: "inherit", textDecoration: "underline" }}>
+              개인정보처리방침
+            </Link>
+            에 동의하는 것으로 봐요
+          </p>
           </>
         ) : (
           <>
