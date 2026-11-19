@@ -249,15 +249,6 @@ export default function FanfareGame({
     await setPlayerReady(gameId, me.id, !myReady).catch(() => {});
   };
 
-  const closeWaiting = async () => {
-    await fetch(`/api/ukiki/rooms/${roomCode}/fanfare`, {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: gameId, outcome: "cancelled" }),
-    }).catch(() => null);
-    location.href = `/r/${roomCode}`;
-  };
-
   // ── 호스트: 카메라 & 영상 송출 ──
   const cameraBusyRef = useRef(false);
   const [cameraStarting, setCameraStarting] = useState(false);
@@ -513,7 +504,6 @@ export default function FanfareGame({
         meId={me.id}
         tapFlash={tapFlash}
         onReady={toggleReady}
-        onClose={closeWaiting}
         onTap={onTap}
         onNudge={() => requestNudge(roomCode, gameId)}
       />

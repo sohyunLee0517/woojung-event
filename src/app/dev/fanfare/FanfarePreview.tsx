@@ -155,7 +155,6 @@ export default function FanfarePreview() {
       meId={ME}
       tapFlash={tapFlash}
       onReady={() => setSim((s) => s && { ...s, players: s.players.map((p) => (p.id === ME ? { ...p, ready: !p.ready } : p)) })}
-      onClose={() => setSim(null)}
       onTap={myTap}
     />
   ) : story ? (
@@ -171,7 +170,6 @@ export default function FanfarePreview() {
       meId={ME}
       tapFlash={false}
       onReady={() => {}}
-      onClose={() => {}}
       onTap={() => {}}
       onNudge={async () => "📣 2명에게 재촉했어요!"}
     />

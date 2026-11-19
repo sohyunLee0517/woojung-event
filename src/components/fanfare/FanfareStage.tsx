@@ -45,7 +45,6 @@ export default function FanfareStage({
   meId,
   tapFlash,
   onReady,
-  onClose,
   onTap,
   onNudge,
 }: {
@@ -61,7 +60,6 @@ export default function FanfareStage({
   meId: string;
   tapFlash: boolean;
   onReady: () => void;
-  onClose: () => void;
   onTap: () => void;
   /** 재촉하기: 결과 문구를 돌려준다 */
   onNudge?: () => Promise<string>;
@@ -133,9 +131,6 @@ export default function FanfareStage({
               </button>
             )}
             {nudgeMsg && <p style={{ fontSize: 13, color: UK.yellow }}>{nudgeMsg}</p>}
-            <button onClick={onClose} style={{ ...ghostButton, padding: "8px 14px", fontSize: 13, opacity: 0.7 }}>
-              빵빠레 닫기
-            </button>
           </div>
         )}
 

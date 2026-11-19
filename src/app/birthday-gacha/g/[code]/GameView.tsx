@@ -20,6 +20,7 @@ import {
 import type { QuizStatus } from "@/lib/birthday-gacha/quiz";
 import InstallCard from "./InstallCard";
 import PushCard from "./PushCard";
+import { requestNudge } from "@/lib/ukiki/nudge-client";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { roomMapHref } from "@/lib/birthday-gacha/nav";
 import { LEGACY } from "@/lib/ukiki/legacy";
@@ -711,6 +712,15 @@ export default function GameView({ code }: { code: string }) {
               </span>
             )}
           </button>
+          {state?.roomCode && (
+            <button
+              onClick={async () => notify(await requestNudge(state.roomCode as string, code), { emoji: "📣" })}
+              aria-label="안 들어온 친구 재촉하기"
+              style={iconButton}
+            >
+              📣
+            </button>
+          )}
           {roomMapHref(state?.roomCode) && (
             <Link href={roomMapHref(state?.roomCode) as string} aria-label="지도" style={{ ...iconButton, display: "flex", alignItems: "center", justifyContent: "center" }}>
             🗺️

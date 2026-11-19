@@ -10,7 +10,8 @@ vi.mock("@/lib/birthday-gacha/push", () => ({
 }));
 
 const { getSql } = await import("@/lib/db");
-const { createFanfare, createRoom, enterRoom, joinFanfare } = await import("./rooms");
+const { createFanfare, createGachaInRoom, createRoom, enterRoom, joinFanfare } = await import("./rooms");
+const { joinGame } = await import("@/lib/birthday-gacha/games");
 const { notifyNewGame, nudgeGame } = await import("./game-push");
 
 const hasDb = !!process.env.DATABASE_URL;
@@ -70,5 +71,16 @@ describe.skipIf(!hasDb)("게임 알림 (실제 DB)", () => {
     const sql = getSql();
     await sql`update uk_room_games set last_nudged_at = null where id = ${id}`;
     expect(await nudgeGame(room, id, OUT)).toEqual({ ok: false, reason: "not_member" });
+  });
+
+  it("가챠도 가챠 코드로 재촉한다: 자리에 앉은 사람은 빼고 보낸다", async () => {
+    const g = await createGachaInRoom(room, O);
+    if (g.kind !== "created") throw new Error("가챠 실패");
+    await joinGame(g.gachaCode, A);
+    sent.length = 0;
+    const r = await nudgeGame(room, g.gachaCode, O);
+    expect(r).toEqual({ ok: true, sent: 1 });
+    expect(sent.map((s) => s.to)).toEqual([B]);
+    expect(sent[0].url).toBe(`/birthday-gacha/g/${g.gachaCode}`);
   });
 });

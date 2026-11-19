@@ -11,6 +11,7 @@ import { fixedColumnStyle, fixedPageStyle, GAME_META, ghostButton, primaryButton
 import TopBar from "./TopBar";
 import { LEGACY } from "@/lib/ukiki/legacy";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
+import PushCard from "@/app/birthday-gacha/g/[code]/PushCard";
 
 const POLL_MS = 4000;
 
@@ -363,6 +364,14 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           ))}
         </section>
 
+        <PushCard
+          code={room.code}
+          onNotice={(title) => setNotice(title)}
+          buttonStyle={{ ...ghostButton, padding: "6px 12px", fontSize: 13 }}
+          onLabel="새 게임·재촉 알림이 이 기기로 와요"
+          offLabel="새 게임이 열리면 알림 받기"
+          testUrl={`/r/${room.code}`}
+        />
         <button onClick={() => setPicker(true)} disabled={!!busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1 }}>
           {busy ? "여는 중…" : "＋ 새 게임 만들기"}
         </button>

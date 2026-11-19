@@ -6,7 +6,7 @@ import { sendTestPush } from "@/lib/birthday-gacha/notify";
 export async function POST(req: Request) {
   const me = (await auth())?.user?.id;
   if (!me) return NextResponse.json({ ok: false }, { status: 401 });
-  const { code } = (await req.json().catch(() => ({}))) as { code?: string };
-  const devices = await sendTestPush(me, normalizeCode(code ?? ""));
+  const { code, url } = (await req.json().catch(() => ({}))) as { code?: string; url?: string };
+  const devices = await sendTestPush(me, normalizeCode(code ?? ""), url);
   return NextResponse.json({ ok: devices > 0, devices });
 }

@@ -14,7 +14,8 @@
     "seed:sample": "SAMPLE_MODE=make node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/ukiki/sample-rooms.seed.test.ts",
     "seed:clean": "SAMPLE_MODE=clean node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/ukiki/sample-rooms.seed.test.ts",
     "test:rules": "firebase emulators:exec --only database --project demo-ukiki \"vitest run src/lib/fanfare/rules.emulator.test.ts\"",
-    "rules:deploy": "node --env-file=.env.local scripts/deploy-rules.mjs"
+    "rules:deploy": "node --env-file=.env.local scripts/deploy-rules.mjs",
+    "push:test": "node --env-file=.env.local node_modules/vite-node/vite-node.mjs --config vitest.config.ts scripts/push-test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",

@@ -14,7 +14,8 @@ type Status =
   | "denied" // 알림을 차단함
   | "off"
   | "on"
-  | "app_off"; // 앱 안인데 알림 권한이 꺼져 있음
+  | "app_off" // 앱 안인데 알림 권한이 꺼져 있음
+  | "app_ios"; // 아이폰 앱은 아직 푸시를 못 받음 (무료 애플 계정)
 
 function urlBase64ToUint8Array(base64: string) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -31,8 +32,15 @@ export default function PushCard({
   code,
   onNotice,
   buttonStyle,
+  onLabel = "퀴즈 알림이 이 기기로 와요 (마지막 접속 기기)",
+  offLabel = "퀴즈가 열릴 때 알림 받기",
+  testUrl,
 }: {
   code: string;
+  onLabel?: string;
+  offLabel?: string;
+  /** 테스트 알림을 눌렀을 때 열 화면 (없으면 가챠 화면) */
+  testUrl?: string;
   onNotice: (title: string, extra?: { emoji?: string; sub?: string }) => void;
   buttonStyle: CSSProperties;
 }) {
@@ -43,7 +51,7 @@ export default function PushCard({
     // 우끼끼 앱 안: 앱 푸시 토큰을 등록(=마지막 접속 기기로 갱신)
     const app = appInfo();
     if (app) {
-      if (!app.pushToken) return setStatus("app_off");
+      if (!app.pushToken) return setStatus(app.platform === "ios" ? "app_ios" : "app_off");
       const res = await fetch("/api/birthday-gacha/push/app", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -105,7 +113,7 @@ export default function PushCard({
       });
       if (!res.ok) throw new Error("save_failed");
       setStatus("on");
-      onNotice("알림을 켰어요", { emoji: "🔔", sub: "퀴즈가 열리면 알려 줄게요" });
+      onNotice("알림을 켰어요", { emoji: "🔔", sub: "이 기기로 알림이 와요" });
     } catch (error) {
       console.error("[push] 켜기 실패", error);
       onNotice("알림을 켜지 못했어요", { emoji: "⚠️" });
@@ -120,7 +128,7 @@ export default function PushCard({
     const res = await fetch("/api/birthday-gacha/push/test", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, url: testUrl }),
     }).catch(() => null);
     const data = res ? ((await res.json()) as { ok: boolean; devices: number }) : null;
     setBusy(false);
@@ -135,12 +143,13 @@ export default function PushCard({
   if (status === "checking") return null;
 
   const text: Record<Exclude<Status, "checking">, string> = {
-    on: "퀴즈 알림이 이 기기로 와요 (마지막 접속 기기)",
-    off: "퀴즈가 열릴 때 알림 받기",
+    on: onLabel,
+    off: offLabel,
     need_install: "아이폰은 홈 화면에 추가한 뒤 알림을 켤 수 있어요",
     denied: "알림이 차단돼 있어요. 설정에서 허용해 주세요",
     unsupported: "이 브라우저는 알림을 받을 수 없어요",
     app_off: "휴대폰 설정 → 앱 → 우끼끼 → 알림을 켜 주세요",
+    app_ios: "아이폰 앱은 아직 알림을 받을 수 없어요",
   };
 
   return (
