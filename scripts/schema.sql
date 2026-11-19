@@ -294,3 +294,7 @@ create table if not exists uk_feature_flags (
   updated_at timestamptz not null default now(),
   updated_by text
 );
+
+-- 회원 탈퇴: 이름·사진·위치·알림 기기를 지우고 시각을 남긴다 (다시 로그인하면 새로 시작)
+alter table players add column if not exists deleted_at timestamptz
+;

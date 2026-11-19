@@ -55,6 +55,20 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isOwner = room.ownerKakaoId === me;
+
+  const removeRoom = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    const res = await fetch(`/api/ukiki/rooms/${room.code}`, { method: "DELETE" }).catch(() => null);
+    setLeaving(false);
+    if (res?.ok) router.push("/?tab=mine");
+    else {
+      setConfirmDelete(false);
+      setNotice("방을 없애지 못했어요.");
+    }
+  };
 
   const leave = async () => {
     if (leaving) return;
@@ -246,6 +260,17 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                       >
                         방 나가기
                       </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setConfirmDelete(true);
+                          }}
+                          style={{ width: "100%", padding: "10px 12px", border: "none", borderRadius: 8, background: "none", color: "#f87171", fontSize: 14, textAlign: "left", cursor: "pointer" }}
+                        >
+                          방 없애기
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -383,6 +408,31 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
         <PastGames code={room.code} />
         </div>
       </div>
+
+      {confirmDelete && (
+        <div
+          onClick={() => !leaving && setConfirmDelete(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 340, padding: 20, borderRadius: 18, background: "#1c1c1c", textAlign: "center", display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            <p style={{ fontSize: 17, fontWeight: 800 }}>&apos;{room.name}&apos; 방을 없앨까요?</p>
+            <p style={{ fontSize: 13, opacity: 0.7, lineHeight: 1.6 }}>
+              친구들도 모두 나가게 되고, 이 방의 지난 게임 기록도 함께 사라져요. 되돌릴 수 없어요.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDelete(false)} disabled={leaving} style={{ ...ghostButton, flex: 1 }}>
+                취소
+              </button>
+              <button onClick={removeRoom} disabled={leaving} style={{ ...ghostButton, flex: 1, background: "#dc2626", opacity: leaving ? 0.6 : 1 }}>
+                {leaving ? "없애는 중…" : "방 없애기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmLeave && (
         <div

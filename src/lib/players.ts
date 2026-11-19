@@ -23,7 +23,8 @@ export async function upsertPlayer(input: {
       nickname = excluded.nickname,
       profile_image = excluded.profile_image,
       last_login_at = now(),
-      login_count = players.login_count + 1
+      login_count = players.login_count + 1,
+      deleted_at = null
   `;
 }
 

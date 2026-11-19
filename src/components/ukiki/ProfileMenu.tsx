@@ -65,6 +65,12 @@ export default function ProfileMenu({
                 로그아웃
               </button>
             </form>
+            <a
+              href="/account"
+              style={{ display: "block", padding: "10px 12px", borderRadius: 8, color: "rgba(255,255,255,.6)", fontSize: 13, textDecoration: "none" }}
+            >
+              회원 탈퇴
+            </a>
           </div>
         </>
       )}

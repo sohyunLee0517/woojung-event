@@ -549,3 +549,20 @@ export async function cancelFanfare(code: string, id: number, me: string) {
   `) as unknown[];
   return rows.length > 0;
 }
+
+/** 방 없애기 (방장만). 멤버·게임 기록도 함께 지워진다. 없앴으면 true */
+export async function deleteRoom(code: string, me: string) {
+  const sql = getSql();
+  const rows = (await sql`
+    delete from uk_rooms where code = ${code} and owner_kakao_id = ${me} returning code
+  `) as unknown[];
+  return rows.length > 0;
+}
+
+/** 내가 방장인 방 목록 (탈퇴 전에 없애야 한다) */
+export async function ownedRooms(me: string) {
+  const sql = getSql();
+  return (await sql`
+    select code, name from uk_rooms where owner_kakao_id = ${me} order by created_at
+  `) as { code: string; name: string }[];
+}

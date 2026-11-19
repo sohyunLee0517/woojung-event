@@ -34,8 +34,8 @@ async function loadRooms(me?: string): Promise<RoomPage | null> {
   }
 }
 
-export default async function Lobby({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next } = await searchParams;
+export default async function Lobby({ searchParams }: { searchParams: Promise<{ next?: string; tab?: string }> }) {
+  const { next, tab } = await searchParams;
   const session = await auth();
   const user = session?.user;
 
@@ -81,7 +81,7 @@ export default async function Lobby({ searchParams }: { searchParams: Promise<{ 
               <CreateRoomForm />
             </header>
 
-            {rooms && <RoomBrowser initial={rooms} />}
+            {rooms && <RoomBrowser initial={rooms} initialTab={tab === "mine" ? "mine" : "all"} />}
             <AppLocationSync />
           </>
         )}

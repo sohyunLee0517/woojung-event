@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    setupFiles: ["src/test-setup.ts"],
     // 실제 DB(Neon, 미국 동부) 테스트는 왕복이 느려서 넉넉하게
     testTimeout: 30_000,
     hookTimeout: 120_000,

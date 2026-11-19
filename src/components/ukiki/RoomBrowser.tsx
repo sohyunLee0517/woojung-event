@@ -35,14 +35,15 @@ function RoomRow({ room }: { room: RoomSummary }) {
   );
 }
 
-export default function RoomBrowser({ initial }: { initial: RoomPage }) {
-  const [tab, setTab] = useState<"all" | "mine">("all");
+export default function RoomBrowser({ initial, initialTab = "all" }: { initial: RoomPage; initialTab?: "all" | "mine" }) {
+  const [tab, setTab] = useState<"all" | "mine">(initialTab);
   const [q, setQ] = useState("");
   const [items, setItems] = useState(initial.items);
   const [nextOffset, setNextOffset] = useState(initial.nextOffset);
   const [loading, setLoading] = useState(false);
   const reqId = useRef(0);
-  const first = useRef(true);
+  // 처음 받은 목록은 '전체' 탭 것이라, '내 방'으로 시작하면 바로 다시 불러온다
+  const first = useRef(initialTab === "all");
 
   const fetchPage = useCallback(async (opts: { q: string; tab: "all" | "mine"; offset: number }) => {
     const sp = new URLSearchParams();
