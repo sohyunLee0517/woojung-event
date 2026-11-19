@@ -262,13 +262,9 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
         }}
       >
         <span style={{ flex: 1 }}>📍 더 정확한 위치(화면을 꺼도 공유)는 우끼끼 앱에서 이용해 주세요</span>
-        {process.env.NEXT_PUBLIC_ANDROID_APP_URL ? (
-          <a href={process.env.NEXT_PUBLIC_ANDROID_APP_URL} style={{ fontWeight: 800, color: "#191919", whiteSpace: "nowrap" }}>
-            앱 받기 →
-          </a>
-        ) : (
-          <span style={{ fontWeight: 700, opacity: 0.7, whiteSpace: "nowrap" }}>앱 준비 중</span>
-        )}
+        <a href="/app" style={{ fontWeight: 800, color: "#191919", whiteSpace: "nowrap" }}>
+          앱 받기 →
+        </a>
       </div>
       )}
 
