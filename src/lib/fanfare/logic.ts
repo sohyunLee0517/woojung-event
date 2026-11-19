@@ -1,3 +1,4 @@
+import { COUNTDOWN_MS, countdownLeft, everyoneReady as allReady } from "@/lib/ukiki/ready";
 // 빵빠레 게임 규칙 (순수 함수). Firebase 쓰기는 이 함수들로 계산한 값을 트랜잭션으로 저장한다.
 //
 // - 온도는 { temperature, updatedAt } 만 저장하고, 식는 것(decay)은 시간으로 계산한다
@@ -10,7 +11,7 @@ export const DECAY_PER_SEC = 0.12;
 export const CELEBRATION_MS = 3000;
 export const RANKING_MS = 4000;
 export const BLACKOUT_MS = 3000;
-export const COUNTDOWN_MS = 3000; // 모두 준비되면 3·2·1
+export { COUNTDOWN_MS }; // 모두 준비되면 3·2·1 (모든 게임 공통)
 
 export type FanfareStatus = "WAITING" | "PLAYING" | "CELEBRATING";
 export type FanfarePhase = "WAITING" | "COUNTDOWN" | "PLAYING" | "CELEBRATION" | "RANKING" | "BLACKOUT" | "REVEAL";
@@ -35,14 +36,13 @@ export function startState(_s: FanfareState, now: number, countdownMs = 0): Fanf
 
 /** 카운트다운에 보여 줄 숫자 (3 → 2 → 1). 시작했으면 0 */
 export function countdownNumber(s: FanfareState, now: number): number {
-  if (s.status !== "PLAYING" || s.startedAt === null || now >= s.startedAt) return 0;
-  return Math.ceil((s.startedAt - now) / 1000);
+  if (s.status !== "PLAYING") return 0;
+  return countdownLeft(s.startedAt, now);
 }
 
 /** 화면에 들어온 사람이 2명 이상이고 모두 '준비완료'를 눌렀는지 */
 export function everyoneReady(players: Record<string, { ready?: boolean }>): boolean {
-  const list = Object.values(players);
-  return list.length >= 2 && list.every((p) => p.ready === true);
+  return allReady(Object.values(players));
 }
 
 const round1 = (n: number) => Math.round(n * 1000) / 1000;
