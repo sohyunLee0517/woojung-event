@@ -96,7 +96,7 @@ export default function FanfarePreview() {
           const next = applyTap(s.state, Date.now(), 3);
           return next === s.state ? s : { ...s, state: next, taps: { ...s.taps, [who]: (s.taps[who] ?? 0) + 1 } };
         });
-      }, 250);
+      }, 40); // 미리보기는 빨리: 친구들이 마구 눌러 5초쯤에 100도
       return () => clearInterval(t);
     }
   }, [simPhase, sim === null]); // eslint-disable-line react-hooks/exhaustive-deps
