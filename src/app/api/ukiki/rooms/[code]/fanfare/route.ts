@@ -13,7 +13,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ code: 
   const outcome = await createFanfare(code, me);
   // 새 게임 알림은 응답을 막지 않게 끝난 뒤에 보낸다
   if (outcome.kind === "created") after(() => notifyNewGame(code, outcome.id, me).catch((e) => console.error("[push] 새 게임 알림 실패", e)));
-  return NextResponse.json(outcome);
+  return NextResponse.json(outcome, { status: outcome.kind === "disabled" ? 403 : 200 });
 }
 
 // 빵빠레 끝내기 (호스트만). 호스트 없는 빵빠레는 시작 전 '닫기'만 방 멤버 누구나

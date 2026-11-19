@@ -7,6 +7,8 @@ import { getAdminOverview } from "@/lib/birthday-gacha/admin-data";
 import { notifyQuizWindow } from "@/lib/birthday-gacha/notify";
 import BackButton from "./BackButton";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
+import { enabledGames, GAME_TYPES, setGameEnabled } from "@/lib/ukiki/features";
+import { GAME_META } from "@/components/ukiki/styles";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +75,7 @@ export default async function AdminPage() {
     );
   }
 
-  const overview = await getAdminOverview();
+  const [overview, switches] = await Promise.all([getAdminOverview(), enabledGames()]);
   const missed = overview.rows.filter((r) => r.warning === "이번 알림 누락").length;
 
   return (
@@ -83,6 +85,37 @@ export default async function AdminPage() {
           <BackButton style={iconBack} />
           <h1 style={{ flex: 1, fontSize: 18, fontWeight: 800 }}>🛠 관리자</h1>
         </header>
+
+        <section style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700 }}>🎮 게임 켜기/끄기</h2>
+          <p style={{ fontSize: 12, opacity: 0.6 }}>끄면 모든 방에서 새로 열 수 없고, 진행 중 목록과 게임 화면에서도 사라져요.</p>
+          {GAME_TYPES.map((type) => {
+            const on = switches[type];
+            return (
+              <form
+                key={type}
+                action={async () => {
+                  "use server";
+                  const s = await auth();
+                  if (adminAccess(s?.user?.id, adminIds()) !== "ok") return;
+                  await setGameEnabled(type, !on, s?.user?.id as string);
+                  revalidatePath("/birthday-gacha/admin");
+                }}
+                style={{ display: "flex", alignItems: "center", gap: 10 }}
+              >
+                <span style={{ fontSize: 22 }}>{GAME_META[type].emoji}</span>
+                <span style={{ flex: 1, fontWeight: 700 }}>{GAME_META[type].label}</span>
+                <button
+                  type="submit"
+                  aria-label={`${GAME_META[type].label} ${on ? "끄기" : "켜기"}`}
+                  style={{ ...button, minWidth: 72, background: on ? "#22c55e" : "rgba(255,255,255,.12)", color: on ? "#052e16" : "#fff" }}
+                >
+                  {on ? "켜짐" : "꺼짐"}
+                </button>
+              </form>
+            );
+          })}
+        </section>
 
         <section style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,.06)" }}>
           <p style={{ fontSize: 13, opacity: 0.7 }}>지금 퀴즈 구간</p>

@@ -285,3 +285,12 @@ alter table uk_game_participants add column if not exists taps integer
 
 -- 빵빠레가 어떻게 끝났는지: completed(공개까지) / aborted(진행 중 중단) / cancelled(시작 전 닫기)
 alter table uk_room_games add column if not exists outcome text
+;
+
+-- 피처 토글: 관리자가 게임별로 켜고 끈다. 행이 없으면 켜진 것으로 본다.
+create table if not exists uk_feature_flags (
+  key        text        primary key,
+  enabled    boolean     not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);

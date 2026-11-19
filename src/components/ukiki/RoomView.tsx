@@ -104,13 +104,14 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
       ? ((await res.json()) as
           | { kind: "created"; id: number }
           | { kind: "conflict"; message: string; active: ActiveFanfare }
-          | { kind: "retry" | "not_member" | "unauthorized" })
+          | { kind: "retry" | "not_member" | "unauthorized" | "disabled" })
       : null;
     setBusy(null);
     if (data?.kind === "created") router.push(fanfarePath(data.id));
     else if (data?.kind === "conflict")
       setConflict({ message: data.message, emoji: GAME_META.fanfare.emoji, href: fanfarePath(data.active.id) });
     else if (data?.kind === "retry") setNotice("방금 빵빠레가 끝났어요. 다시 눌러 주세요.");
+    else if (data?.kind === "disabled") setNotice("지금은 쉬고 있는 게임이에요.");
     else setNotice("빵빠레를 열지 못했어요.");
     load();
   };
@@ -123,13 +124,14 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
       ? ((await res.json()) as
           | { kind: "created"; gachaCode: string }
           | { kind: "conflict"; message: string; active: { gachaCode: string } }
-          | { kind: "retry" | "not_member" | "unauthorized" })
+          | { kind: "retry" | "not_member" | "unauthorized" | "disabled" })
       : null;
     setBusy(null);
     if (data?.kind === "created") router.push(`/birthday-gacha/g/${data.gachaCode}`);
     else if (data?.kind === "conflict")
       setConflict({ message: data.message, emoji: GAME_META.gacha.emoji, href: `/birthday-gacha/g/${data.active.gachaCode}` });
     else if (data?.kind === "retry") setNotice("방금 가챠가 끝났어요. 다시 눌러 주세요.");
+    else if (data?.kind === "disabled") setNotice("지금은 쉬고 있는 게임이에요.");
     else setNotice("가챠를 열지 못했어요.");
     load();
   };
@@ -434,7 +436,9 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                 ["fanfare", openFanfare],
                 ["gacha", openGacha],
               ] as const
-            ).map(([type, open]) => (
+            )
+              .filter(([type]) => room.enabledGames?.[type] !== false)
+              .map(([type, open]) => (
               <button key={type} onClick={() => pick(open)} style={{ ...gameCard, cursor: "pointer", border: "1px solid rgba(255,255,255,.12)" }}>
                 <span style={{ fontSize: 30 }}>{GAME_META[type].emoji}</span>
                 <span style={{ flex: 1, textAlign: "left" }}>

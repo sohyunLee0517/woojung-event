@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { enabledGames } from "@/lib/ukiki/features";
 import { getSql } from "@/lib/db";
 import { createGame } from "@/lib/birthday-gacha/games";
 import { likePattern, pageResult, parseRoomQuery, type RoomQuery } from "@/lib/ukiki/room-list";
@@ -53,6 +54,8 @@ export type RoomDetail = {
   ownerKakaoId: string;
   members: { kakaoId: string; nickname: string | null; image: string | null; online: boolean }[];
   games: RoomGame[];
+  /** 관리자가 켜 둔 게임 (꺼진 게임은 새로 열 수 없고 목록에도 안 나온다) */
+  enabledGames: Record<GameType, boolean>;
 };
 
 /** 방을 만들고 만든 사람을 멤버로 넣는다 */
@@ -185,6 +188,7 @@ export async function enterRoom(
 export async function getRoomDetail(code: string, me: string): Promise<RoomDetail | null> {
   const room = await loadRoomRow(code);
   if (!room || !(await isRoomMember(code, me))) return null;
+  const switches = await enabledGames();
   const sql = getSql();
   const members = (await sql`
     select m.kakao_id, p.nickname, p.profile_image,
@@ -219,14 +223,17 @@ export async function getRoomDetail(code: string, me: string): Promise<RoomDetai
       image: m.profile_image,
       online: m.online,
     })),
-    games: games.map((g) => ({
-      id: Number(g.id),
-      type: g.game_type,
-      hostKakaoId: g.host_kakao_id,
-      hostName: g.host_name,
-      refCode: g.ref_code,
-      createdAt: new Date(g.created_at).toISOString(),
-    })),
+    games: games
+      .filter((g) => switches[g.game_type])
+      .map((g) => ({
+        id: Number(g.id),
+        type: g.game_type,
+        hostKakaoId: g.host_kakao_id,
+        hostName: g.host_name,
+        refCode: g.ref_code,
+        createdAt: new Date(g.created_at).toISOString(),
+      })),
+    enabledGames: switches,
   };
 }
 
@@ -253,8 +260,9 @@ async function activeFanfare(code: string): Promise<ActiveFanfare | null> {
 export async function createFanfare(
   code: string,
   me: string,
-): Promise<FanfareCreateOutcome | { kind: "not_member" }> {
+): Promise<FanfareCreateOutcome | { kind: "not_member" } | { kind: "disabled" }> {
   if (!(await isRoomMember(code, me))) return { kind: "not_member" };
+  if (!(await enabledGames()).fanfare) return { kind: "disabled" };
   const sql = getSql();
   const inserted = (await sql`
     insert into uk_room_games (room_code, game_type, host_kakao_id)
@@ -309,7 +317,8 @@ export type GachaCreateOutcome =
   | { kind: "created"; gachaCode: string }
   | { kind: "conflict"; active: { gachaCode: string; hostName: string | null }; message: string }
   | { kind: "retry" }
-  | { kind: "not_member" };
+  | { kind: "not_member" }
+  | { kind: "disabled" };
 
 /**
  * 방에서 생일 가챠를 연다. 방마다 진행 중인 가챠는 1개.
@@ -317,6 +326,7 @@ export type GachaCreateOutcome =
  */
 export async function createGachaInRoom(code: string, me: string): Promise<GachaCreateOutcome> {
   if (!(await isRoomMember(code, me))) return { kind: "not_member" };
+  if (!(await enabledGames()).gacha) return { kind: "disabled" };
   const gachaCode = await createGame(me);
   const sql = getSql();
   const inserted = (await sql`

@@ -5,6 +5,7 @@ import FanfareGame from "@/components/fanfare/FanfareGame";
 import { columnStyle, pageStyle } from "@/components/ukiki/styles";
 import TopBar from "@/components/ukiki/TopBar";
 import { LEGACY } from "@/lib/ukiki/legacy";
+import { enabledGames } from "@/lib/ukiki/features";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,8 @@ export default async function FanfarePage({
 
   const game = await getRoomGame(code, Number(p.id));
   if (!game || game.game_type !== "fanfare") redirect(`/r/${code}`);
+  // 관리자가 빵빠레를 꺼 두면 방으로
+  if (!(await enabledGames()).fanfare) redirect(`/r/${code}`);
 
   if (game.status === "ended") {
     return (

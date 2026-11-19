@@ -37,6 +37,7 @@ describe.skipIf(!hasDb)("게임 알림 (실제 DB)", () => {
   afterAll(async () => {
     const sql = getSql();
     await sql`delete from uk_rooms where owner_kakao_id = ${O}`;
+    await sql`delete from games where host_kakao_id = any(${P})`;
     await sql`delete from players where kakao_id = any(${P})`;
   });
 
