@@ -135,12 +135,12 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     setBusy("pirate");
     const res = await fetch(`/api/ukiki/rooms/${room.code}/pirate`, { method: "POST" }).catch(() => null);
     const data = res
-      ? ((await res.json()) as { kind: "created"; id: number } | { kind: "conflict"; id: number; message: string } | { kind: string })
+      ? ((await res.json()) as { kind: string; id?: number; message?: string })
       : null;
     setBusy(null);
-    if (data?.kind === "created" && "id" in data) router.push(pirateGamePath(data.id));
-    else if (data?.kind === "conflict" && "message" in data)
-      setConflict({ message: data.message, emoji: GAME_META.pirate.emoji, href: pirateGamePath(data.id) });
+    if (data?.kind === "created" && data.id) router.push(pirateGamePath(data.id));
+    else if (data?.kind === "conflict" && data.id)
+      setConflict({ message: data.message ?? "이미 열린 해적 게임이 있어요", emoji: GAME_META.pirate.emoji, href: pirateGamePath(data.id) });
     else if (data?.kind === "retry") setNotice("방금 해적 게임이 끝났어요. 다시 눌러 주세요.");
     else if (data?.kind === "disabled") setNotice("지금은 쉬고 있는 게임이에요.");
     else setNotice("해적 무찌르기를 열지 못했어요.");
