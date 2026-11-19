@@ -40,6 +40,7 @@ import TopBar from "@/components/ukiki/TopBar";
 import FanfareStage from "./FanfareStage";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
 import { ghostButton, primaryButton, UK } from "@/components/ukiki/styles";
+import BackToRoom from "@/components/ukiki/BackToRoom";
 
 type Me = { id: string; name: string; image: string | null };
 
@@ -374,9 +375,7 @@ export default function FanfareGame({
         <p style={{ fontSize: 40 }}>🏁</p>
         <p style={{ fontWeight: 800 }}>우정의 온도가 끝났어요</p>
         <p style={{ fontSize: 13, opacity: 0.6 }}>결과는 방의 &apos;지난 게임&apos;에서 볼 수 있어요</p>
-        <a href={`/r/${roomCode}`} style={{ ...primaryButton, textDecoration: "none" }}>
-          방으로 돌아가기
-        </a>
+        <BackToRoom href={`/r/${roomCode}`} primary />
       </div>
     );
   }

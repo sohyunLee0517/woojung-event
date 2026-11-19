@@ -401,7 +401,7 @@ export async function listPastGames(code: string, me: string, offset = 0) {
       where g.room_code = ${code}
         and (
           (g.game_type = 'fanfare' and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
-          or (g.game_type in ('pirate', 'snack', 'pinball') and g.status = 'ended' and g.ended_at <= now() and coalesce(g.outcome, 'completed') <> 'cancelled')
+          or (g.game_type in ('pirate', 'snack', 'pinball') and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
           or (g.game_type = 'gacha'
               and exists (select 1 from capsules c where c.game_code = g.ref_code)
               and not exists (select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null))

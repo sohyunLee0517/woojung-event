@@ -1,5 +1,6 @@
 "use client";
 
+import BackToRoom from "@/components/ukiki/BackToRoom";
 import type { PinballPlayer } from "./PinballStage";
 
 const CSS = `
@@ -13,7 +14,7 @@ const CSS = `
 const CONFETTI = ["#ff2bd6", "#00f0ff", "#b6ff00", "#ffb800", "#a46bff"];
 
 // 결과: 1등은 "오늘의 주인공"으로 크게, 나머지는 순서대로.
-export default function PinballResult({ players, order }: { players: PinballPlayer[]; order: string[] }) {
+export default function PinballResult({ players, order, backHref }: { players: PinballPlayer[]; order: string[]; backHref?: string }) {
   const byId = new Map(players.map((p) => [p.id, p]));
   const star = byId.get(order[0])!;
   const rest = order.slice(1).map((id) => byId.get(id)!);
@@ -97,6 +98,12 @@ export default function PinballResult({ players, order }: { players: PinballPlay
         ))}
       </div>
 
+      {backHref && (
+        <BackToRoom
+          href={backHref}
+          style={{ position: "relative", marginTop: "auto", marginBottom: 20, background: "#ff2bd6", color: "#fff", border: "none", boxShadow: "0 0 18px #ff2bd6" }}
+        />
+      )}
     </div>
   );
 }

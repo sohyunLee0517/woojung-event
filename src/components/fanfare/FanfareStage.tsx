@@ -1,4 +1,5 @@
 "use client";
+import BackToRoom from "@/components/ukiki/BackToRoom";
 
 import TemperatureGauge from "@/components/TemperatureGauge";
 import TopBar from "@/components/ukiki/TopBar";
@@ -135,9 +136,7 @@ export default function FanfareStage({
                 </li>
               ))}
             </ul>
-            <a href={backHref} style={{ ...ghostButton, textDecoration: "none", marginTop: 8 }}>
-              방으로 돌아가기
-            </a>
+            <BackToRoom href={backHref} style={{ marginTop: 8 }} />
           </div>
         )}
       </div>

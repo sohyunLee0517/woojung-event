@@ -50,7 +50,6 @@ describe.skipIf(!hasDb)("랜덤 핀볼 (실제 DB)", () => {
 
     // 시작하면 다음 판을 새로 열 수 있고, 지난 게임에 1등이 나온다
     expect((await createPinball(room, A)).kind).toBe("created");
-    await getSql()`update uk_room_games set ended_at = now() - interval '1 second' where id = ${g.id}`;
     const past = await listPastGames(room, A);
     const item = past!.items.find((x) => x.id === g.id);
     expect(item?.miniResult?.summary).toContain(s.order[0]);

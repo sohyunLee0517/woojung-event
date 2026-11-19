@@ -5,9 +5,6 @@ import { enabledGames } from "@/lib/ukiki/features";
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import { simulateOrder } from "./logic";
 
-/** 시작 후 이 시간이 지나면 지난 게임에 올린다 (구슬이 다 들어올 넉넉한 시간) */
-const PLAY_SECS = 25;
-
 async function isMember(code: string, me: string) {
   const rows = (await getSql()`select 1 from uk_room_members where room_code = ${code} and kakao_id = ${me}`) as unknown[];
   return rows.length > 0;
@@ -58,7 +55,7 @@ export async function joinPinball(code: string, id: number, me: string) {
   return true;
 }
 
-/** 준비완료. 2명 이상 모두 준비면 3초 뒤 시작: 시드·참여자·순서를 확정하고 방의 진행 중 목록에서 내린다 */
+/** 준비완료. 2명 이상 모두 준비면 3초 뒤 시작: 시드·참여자·순서를 확정하고, 순위가 정해졌으니 바로 지난 게임으로 */
 export async function setPinballReady(code: string, id: number, me: string, ready: boolean) {
   const sql = getSql();
   await sql`update uk_pinball_players set ready = ${ready} where game_id = ${id} and kakao_id = ${me}`;
@@ -79,7 +76,7 @@ export async function setPinballReady(code: string, id: number, me: string, read
   await sql`update uk_pinball_games set result_order = ${order} where game_id = ${id}`;
   await sql`
     update uk_room_games set status = 'ended', outcome = 'completed',
-      ended_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000 + PLAY_SECS})
+      ended_at = now()
     where id = ${id} and status = 'active'
   `;
 }

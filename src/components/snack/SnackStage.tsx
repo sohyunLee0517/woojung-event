@@ -1,4 +1,5 @@
 "use client";
+import BackToRoom from "@/components/ukiki/BackToRoom";
 
 import { useRef, useState } from "react";
 import TopBar from "@/components/ukiki/TopBar";
@@ -245,9 +246,7 @@ export default function SnackStage({
                   <p style={{ fontSize: 14, opacity: 0.7 }}>{total === SNACK_TOTAL ? "딱 맞게 나눴어요! 🎯" : `과자 ${SNACK_TOTAL - (total ?? 0)}%가 남았어요`}</p>
                 </>
               )}
-              <a href={backHref} style={{ ...ghostButton, textDecoration: "none", display: "inline-block", marginTop: 14 }}>
-                방으로 돌아가기
-              </a>
+              <BackToRoom href={backHref} style={{ display: "inline-block", marginTop: 14 }} />
             </div>
           </div>
         )}

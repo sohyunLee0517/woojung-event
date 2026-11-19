@@ -1,4 +1,5 @@
 "use client";
+import BackToRoom from "@/components/ukiki/BackToRoom";
 
 import { useEffect, useRef, useState } from "react";
 import TopBar from "@/components/ukiki/TopBar";
@@ -258,9 +259,7 @@ export default function PirateStage({
               <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 8 }}>
                 <p style={{ fontSize: 30, fontWeight: 900 }}>🎉 성공!</p>
                 <p style={{ fontSize: 14, opacity: 0.7 }}>해적이 끝까지 못 나왔어요. 모두의 승리!</p>
-                <a href={backHref} style={{ ...ghostButton, textDecoration: "none" }}>
-                  방으로 돌아가기
-                </a>
+                <BackToRoom href={backHref} />
               </div>
             )}
           </div>
@@ -278,9 +277,7 @@ export default function PirateStage({
             실패!
           </p>
           <p className="pr-fail-text" style={{ fontSize: 16, opacity: 0.85 }}>해적이 튀어나왔어요 🏴‍☠️</p>
-          <a href={backHref} className="pr-fail-text" style={{ ...ghostButton, textDecoration: "none", marginTop: 16 }}>
-            방으로 돌아가기
-          </a>
+          <BackToRoom href={backHref} className="pr-fail-text" style={{ marginTop: 16 }} />
         </div>
       )}
     </div>

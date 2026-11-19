@@ -90,7 +90,7 @@ export default function PinballGame({ roomCode, gameId, me }: { roomCode: string
         {rp === "STARTED" && state.seed !== null && (
           <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
             {showResult ? (
-              <PinballResult players={balls} order={state.order} />
+              <PinballResult players={balls} order={state.order} backHref={`/r/${roomCode}`} />
             ) : (
               <>
                 <PinballStage players={balls} meId={me} seed={state.seed} onDone={() => setFinished(true)} />

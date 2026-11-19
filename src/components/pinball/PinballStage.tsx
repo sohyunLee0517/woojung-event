@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 import { allDone, BALL_R, BAR_T, createSim, DT, FINISH_Y, H, obstacleSeg, step, W, type Sim } from "@/lib/pinball/logic";
 
+/** 전체 재생 속도 (화면만 느리게, 결과는 그대로) */
+const PLAYBACK = 0.7;
+
 export type PinballPlayer = { id: string; name: string; emoji: string; color: string };
 
 // 핀볼 판. 시드 하나로 모든 폰이 같은 장면을 그린다.
@@ -90,7 +93,7 @@ export default function PinballStage({
       pip.alpha += ((showPip ? 1 : 0) - pip.alpha) * Math.min(1, k * 1.5);
 
       // ── 물리 진행 ──
-      acc += real * cam.speed;
+      acc += real * cam.speed * PLAYBACK;
       while (acc >= DT && !allDone(sim)) {
         step(sim);
         acc -= DT;
