@@ -10,9 +10,10 @@ export const DECAY_PER_SEC = 0.12;
 export const CELEBRATION_MS = 3000;
 export const RANKING_MS = 4000;
 export const BLACKOUT_MS = 3000;
+export const COUNTDOWN_MS = 3000; // 모두 준비되면 3·2·1
 
 export type FanfareStatus = "WAITING" | "PLAYING" | "CELEBRATING";
-export type FanfarePhase = "WAITING" | "PLAYING" | "CELEBRATION" | "RANKING" | "BLACKOUT" | "REVEAL";
+export type FanfarePhase = "WAITING" | "COUNTDOWN" | "PLAYING" | "CELEBRATION" | "RANKING" | "BLACKOUT" | "REVEAL";
 
 export type FanfareState = {
   status: FanfareStatus;
@@ -26,8 +27,22 @@ export function initialState(): FanfareState {
   return { status: "WAITING", temperature: 0, updatedAt: null, startedAt: null, celebratedAt: null };
 }
 
-export function startState(_s: FanfareState, now: number): FanfareState {
-  return { status: "PLAYING", temperature: 0, updatedAt: now, startedAt: now, celebratedAt: null };
+/** countdownMs 만큼 뒤에 시작한다 (그동안은 3·2·1 카운트다운) */
+export function startState(_s: FanfareState, now: number, countdownMs = 0): FanfareState {
+  const at = now + countdownMs;
+  return { status: "PLAYING", temperature: 0, updatedAt: at, startedAt: at, celebratedAt: null };
+}
+
+/** 카운트다운에 보여 줄 숫자 (3 → 2 → 1). 시작했으면 0 */
+export function countdownNumber(s: FanfareState, now: number): number {
+  if (s.status !== "PLAYING" || s.startedAt === null || now >= s.startedAt) return 0;
+  return Math.ceil((s.startedAt - now) / 1000);
+}
+
+/** 화면에 들어온 사람이 2명 이상이고 모두 '준비완료'를 눌렀는지 */
+export function everyoneReady(players: Record<string, { ready?: boolean }>): boolean {
+  const list = Object.values(players);
+  return list.length >= 2 && list.every((p) => p.ready === true);
 }
 
 const round1 = (n: number) => Math.round(n * 1000) / 1000;
@@ -35,6 +50,7 @@ const round1 = (n: number) => Math.round(n * 1000) / 1000;
 export function effectiveTemperature(s: FanfareState, now: number): number {
   if (s.status === "WAITING") return 0;
   if (s.status === "CELEBRATING") return 100;
+  if (s.startedAt !== null && now < s.startedAt) return 0;
   const elapsed = Math.max(0, now - (s.updatedAt ?? now)) / 1000;
   return Math.max(0, round1(s.temperature - DECAY_PER_SEC * elapsed));
 }
@@ -42,16 +58,28 @@ export function effectiveTemperature(s: FanfareState, now: number): number {
 /** 탭 한 번. playerCount 는 지금 들어와 있는 참가자 수 (호스트 제외) */
 export function applyTap(s: FanfareState, now: number, playerCount: number): FanfareState {
   if (s.status !== "PLAYING") return s;
+  if (s.startedAt !== null && now < s.startedAt) return s; // 카운트다운 중
   const gain = TAP_GAIN_TOTAL / Math.max(1, playerCount);
   const next = Math.min(100, round1(effectiveTemperature(s, now) + gain));
   if (next >= 100) return { ...s, status: "CELEBRATING", temperature: 100, updatedAt: now, celebratedAt: now };
   return { ...s, temperature: next, updatedAt: now };
 }
 
-export function derivePhase(s: FanfareState, now: number): { phase: FanfarePhase; msUntilNext: number | null } {
+/** reveal: false 면 호스트 영상 공개 없이 폭죽 → 순위에서 끝난다 (LEGACY.fanfareHost 꺼짐) */
+export function derivePhase(
+  s: FanfareState,
+  now: number,
+  { reveal = true }: { reveal?: boolean } = {},
+): { phase: FanfarePhase; msUntilNext: number | null } {
   if (s.status === "WAITING") return { phase: "WAITING", msUntilNext: null };
+  if (s.status === "PLAYING" && s.startedAt !== null && now < s.startedAt)
+    return { phase: "COUNTDOWN", msUntilNext: s.startedAt - now };
   if (s.status === "PLAYING" || s.celebratedAt === null) return { phase: "PLAYING", msUntilNext: null };
   const t = now - s.celebratedAt;
+  if (!reveal) {
+    if (t < CELEBRATION_MS) return { phase: "CELEBRATION", msUntilNext: CELEBRATION_MS - Math.max(0, t) };
+    return { phase: "RANKING", msUntilNext: null };
+  }
   const steps: [FanfarePhase, number][] = [
     ["CELEBRATION", CELEBRATION_MS],
     ["RANKING", CELEBRATION_MS + RANKING_MS],
@@ -94,5 +122,11 @@ export function hostEndAction(phase: FanfarePhase): { outcome: FanfareOutcome; l
 export function canStartFanfare(input: { cameraOn: boolean; playerCount: number }): { ok: boolean; reason: string | null } {
   if (!input.cameraOn) return { ok: false, reason: "카메라를 먼저 켜 주세요" };
   if (input.playerCount < 1) return { ok: false, reason: "친구가 1명 이상 들어와야 해요 (2명부터)" };
+  return { ok: true, reason: null };
+}
+
+/** 호스트 없는 빵빠레: 화면에 들어온 사람(나 포함)이 2명 이상이면 누구나 시작 */
+export function canStartTogether(playerCount: number): { ok: boolean; reason: string | null } {
+  if (playerCount < 2) return { ok: false, reason: "2명부터 시작할 수 있어요" };
   return { ok: true, reason: null };
 }

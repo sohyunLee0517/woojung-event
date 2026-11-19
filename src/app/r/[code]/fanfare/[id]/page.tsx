@@ -4,6 +4,7 @@ import { enterRoom, getRoomGame, joinFanfare, normalizeRoomCode } from "@/lib/uk
 import FanfareGame from "@/components/fanfare/FanfareGame";
 import { columnStyle, pageStyle } from "@/components/ukiki/styles";
 import TopBar from "@/components/ukiki/TopBar";
+import { LEGACY } from "@/lib/ukiki/legacy";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export default async function FanfarePage({
       gameId={Number(game.id)}
       roomCode={code}
       me={identity}
-      isHost={!asTestFriend && game.host_kakao_id === me}
+      isHost={LEGACY.fanfareHost && !asTestFriend && game.host_kakao_id === me}
       hostName={game.host_name ?? "호스트"}
       devAs={asTestFriend}
     />

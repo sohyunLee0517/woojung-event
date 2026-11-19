@@ -18,9 +18,9 @@ import {
   type DatabaseReference,
 } from "firebase/database";
 import { db } from "@/lib/firebase";
-import { applyTap, initialState, startState, type FanfareState } from "@/lib/fanfare/logic";
+import { applyTap, COUNTDOWN_MS, initialState, startState, type FanfareState } from "@/lib/fanfare/logic";
 
-export type FanfarePlayer = { name: string; image: string | null; joinedAt: number };
+export type FanfarePlayer = { name: string; image: string | null; joinedAt: number; ready?: boolean };
 export type FanfareHostInfo = { kakaoId: string; epoch: number; online: boolean };
 
 export const basePath = (gameId: number | string) => `ukiki/fanfare/${gameId}`;
@@ -117,4 +117,20 @@ export async function announceHost(gameId: number, kakaoId: string, epoch: numbe
 
 export async function hostOffline(gameId: number) {
   await update(pathRef(gameId, "host"), { online: false });
+}
+
+// ── 호스트 없는 빵빠레 ──
+/** 준비완료 표시 (끊겼다 다시 들어오면 준비 전으로 돌아간다) */
+export async function setPlayerReady(gameId: number, me: string, ready: boolean) {
+  await update(pathRef(gameId, `players/${me}`), { ready });
+}
+
+/** 모두 준비되면 누구든 부른다. 트랜잭션이라 여럿이 동시에 불러도 한 번만 시작한다. */
+export async function startCountdown(gameId: number) {
+  const now = serverNow();
+  await runTransaction(pathRef(gameId, "state"), (cur) => {
+    const s = normalize(cur);
+    if (s.status !== "WAITING") return;
+    return startState(s, now, COUNTDOWN_MS);
+  });
 }

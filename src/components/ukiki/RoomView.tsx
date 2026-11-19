@@ -9,6 +9,7 @@ import PastGames from "./PastGames";
 import { MIN_PLAYERS, joinedMembers, roomSections } from "@/lib/ukiki/room-view";
 import { fixedColumnStyle, fixedPageStyle, GAME_META, ghostButton, primaryButton, scrollAreaStyle, UK } from "./styles";
 import TopBar from "./TopBar";
+import { LEGACY } from "@/lib/ukiki/legacy";
 
 const POLL_MS = 4000;
 
@@ -145,6 +146,11 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
 
   const sections = roomSections({ memberCount: room.members.length });
   const fanfare = room.games.find((g) => g.type === "fanfare");
+  const [picker, setPicker] = useState(false);
+  const pick = (open: () => Promise<void>) => {
+    setPicker(false);
+    void open();
+  };
   const gachas = room.games.filter((g) => g.type === "gacha");
   const onlineCount = room.members.filter((m) => m.online).length;
 
@@ -310,17 +316,23 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           <>
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800 }}>🔥 진행 중</h2>
-          {!fanfare && gachas.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 열린 게임이 없어요. 아래에서 하나 열어 보세요!</p>}
+          {!fanfare && gachas.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 열린 게임이 없어요. 새 게임을 만들어 보세요!</p>}
           {fanfare && (
             <Link href={fanfarePath(fanfare.id)} style={{ ...gameCard, borderColor: "rgba(254,229,0,.5)" }}>
               <span style={{ fontSize: 26 }}>{GAME_META.fanfare.emoji}</span>
               <span style={{ flex: 1 }}>
                 <b>빵빠레</b>
                 <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>
-                  {fanfare.hostKakaoId === me ? "내가 호스트" : `${fanfare.hostName ?? "친구"}님이 호스트`}
+                  {LEGACY.fanfareHost
+                    ? fanfare.hostKakaoId === me
+                      ? "내가 호스트"
+                      : `${fanfare.hostName ?? "친구"}님이 호스트`
+                    : `${fanfare.hostName ?? "친구"}님이 열었어요`}
                 </span>
               </span>
-              <span style={{ ...ghostButton, background: UK.yellow, color: "#191919" }}>{fanfare.hostKakaoId === me ? "열기" : "참여"}</span>
+              <span style={{ ...ghostButton, background: UK.yellow, color: "#191919" }}>
+                {LEGACY.fanfareHost && fanfare.hostKakaoId === me ? "열기" : "참여"}
+              </span>
             </Link>
           )}
           {gachas.map((g) => (
@@ -335,25 +347,9 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
           ))}
         </section>
 
-        <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800 }}>🎮 새 게임 열기</h2>
-          <button onClick={openFanfare} disabled={!!busy} style={{ ...gameCard, cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
-            <span style={{ fontSize: 26 }}>{GAME_META.fanfare.emoji}</span>
-            <span style={{ flex: 1, textAlign: "left" }}>
-              <b>빵빠레 열기</b>
-              <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>내가 호스트(카메라)</span>
-            </span>
-            <span>{busy === "fanfare" ? "…" : "＋"}</span>
-          </button>
-          <button onClick={openGacha} disabled={!!busy} style={{ ...gameCard, cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
-            <span style={{ fontSize: 26 }}>{GAME_META.gacha.emoji}</span>
-            <span style={{ flex: 1, textAlign: "left" }}>
-              <b>생일 가챠 열기</b>
-              <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{GAME_META.gacha.desc}</span>
-            </span>
-            <span>{busy === "gacha" ? "…" : "＋"}</span>
-          </button>
-        </section>
+        <button onClick={() => setPicker(true)} disabled={!!busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1 }}>
+          {busy ? "여는 중…" : "＋ 새 게임 만들기"}
+        </button>
 
           </>
         )}
@@ -381,7 +377,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             </p>
             {fanfare?.hostKakaoId === me && (
               <div style={{ padding: "10px 12px", borderRadius: 12, background: "rgba(220,38,38,.15)", border: "1px solid rgba(220,38,38,.55)", fontSize: 13, lineHeight: 1.5 }}>
-                ⚠️ 내가 호스트인 <b>빵빠레가 진행 중</b>이에요.
+                ⚠️ 내가 연 <b>빵빠레가 진행 중</b>이에요.
                 <br />
                 나가면 게임이 <b>중단</b>되고 지난 게임에 &apos;중단&apos;으로 기록돼요.
               </div>
@@ -394,6 +390,38 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                 {leaving ? "나가는 중…" : fanfare?.hostKakaoId === me ? "중단하고 나가기" : "나가기"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {picker && (
+        <div
+          onClick={() => setPicker(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 480, padding: "20px 16px 28px", borderRadius: "20px 20px 0 0", background: "#1c1c1c", display: "flex", flexDirection: "column", gap: 10 }}
+          >
+            <p style={{ fontSize: 17, fontWeight: 800, textAlign: "center" }}>🎮 어떤 게임을 할까요?</p>
+            {(
+              [
+                ["fanfare", openFanfare],
+                ["gacha", openGacha],
+              ] as const
+            ).map(([type, open]) => (
+              <button key={type} onClick={() => pick(open)} style={{ ...gameCard, cursor: "pointer", border: "1px solid rgba(255,255,255,.12)" }}>
+                <span style={{ fontSize: 30 }}>{GAME_META[type].emoji}</span>
+                <span style={{ flex: 1, textAlign: "left" }}>
+                  <b>{GAME_META[type].label}</b>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{GAME_META[type].desc}</span>
+                </span>
+                <span style={{ fontSize: 18, opacity: 0.6 }}>›</span>
+              </button>
+            ))}
+            <button onClick={() => setPicker(false)} style={{ ...ghostButton, marginTop: 4 }}>
+              닫기
+            </button>
           </div>
         </div>
       )}

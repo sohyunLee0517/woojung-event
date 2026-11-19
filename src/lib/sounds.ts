@@ -114,3 +114,21 @@ export function playTudum(): void {
   vib.start(now + 0.35);
   vib.stop(now + 1.8);
 }
+
+/** 카운트다운 삑 (go: 시작! 은 높고 길게) */
+export function playBeep(go = false): void {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(go ? 1046.5 : 523.25, now);
+  const len = go ? 0.5 : 0.18;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.14, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + len);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + len);
+}

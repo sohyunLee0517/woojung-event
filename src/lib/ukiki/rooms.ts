@@ -499,3 +499,43 @@ export async function saveFanfareResult(code: string, id: number, me: string, ta
   `;
   return true;
 }
+
+/**
+ * 호스트 없는 빵빠레: 순위가 나오면 참여자 누구나 결과를 저장하고 끝낸다.
+ * 여러 명이 동시에 불러도 같은 결과(탭 수는 최신 값으로 덮어씀)라 괜찮다.
+ */
+export async function finishFanfare(code: string, id: number, me: string, taps: Record<string, number>) {
+  const sql = getSql();
+  const ok = (await sql`
+    select 1 from uk_room_games g
+    where g.id = ${id} and g.room_code = ${code} and g.game_type = 'fanfare'
+      and exists (select 1 from uk_room_members m where m.room_code = ${code} and m.kakao_id = ${me})
+  `) as unknown[];
+  if (ok.length === 0) return false;
+  const ids = Object.keys(taps);
+  const counts = ids.map((k) => Math.max(0, Math.floor(Number(taps[k]) || 0)));
+  await sql`
+    insert into uk_game_participants (game_id, kakao_id, taps)
+    select ${id}, t.kakao_id, t.taps
+    from unnest(${ids}::text[], ${counts}::int[]) as t(kakao_id, taps)
+    where exists (select 1 from uk_room_members m where m.room_code = ${code} and m.kakao_id = t.kakao_id)
+    on conflict (game_id, kakao_id) do update set taps = excluded.taps
+  `;
+  await sql`
+    update uk_room_games set status = 'ended', ended_at = now(), outcome = 'completed'
+    where id = ${id} and room_code = ${code} and game_type = 'fanfare' and status = 'active'
+  `;
+  return true;
+}
+
+/** 호스트 없는 빵빠레: 시작 전이면 방 멤버 누구나 닫는다 (기록 안 남음) */
+export async function cancelFanfare(code: string, id: number, me: string) {
+  const sql = getSql();
+  const rows = (await sql`
+    update uk_room_games set status = 'ended', ended_at = now(), outcome = 'cancelled'
+    where id = ${id} and room_code = ${code} and game_type = 'fanfare' and status = 'active'
+      and exists (select 1 from uk_room_members m where m.room_code = ${code} and m.kakao_id = ${me})
+    returning id
+  `) as unknown[];
+  return rows.length > 0;
+}

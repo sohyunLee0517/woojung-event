@@ -149,10 +149,39 @@ describe.skipIf(!EMU)("빵빠레 보안 규칙", () => {
       });
     };
 
-    it("게임 시작은 호스트만 (카메라 켜짐 + 친구 1명 이상)", async () => {
+    it("호스트는 카메라 켜짐 + 친구 1명 이상이면 시작할 수 있다", async () => {
       await ready({ camera: true, players: true });
-      await assertFails(set(ref(db(A), `${G}/state`), start));
       await assertSucceeds(set(ref(db(HOST), `${G}/state`), start));
+    });
+
+    // 호스트 없는 빵빠레 (LEGACY.fanfareHost 꺼짐): 화면에 들어와 있는 멤버 누구나 시작
+    it("화면에 들어와 있는 친구는 카메라 없이도 시작할 수 있다", async () => {
+      await ready({ camera: false, players: true });
+      await assertSucceeds(set(ref(db(A), `${G}/state`), start));
+    });
+
+    it("화면에 들어와 있지 않은 친구는 시작할 수 없다", async () => {
+      await ready({ camera: false, players: true });
+      await assertFails(set(ref(db(B), `${G}/state`), start));
+    });
+
+    it("3·2·1 카운트다운: 시작 시각을 5초 넘게 미룰 수는 없다", async () => {
+      await ready({ camera: false, players: true });
+      const t = Date.now();
+      await assertFails(set(ref(db(A), `${G}/state`), { ...start, updatedAt: t + 60_000, startedAt: t + 60_000 }));
+      await assertSucceeds(set(ref(db(A), `${G}/state`), { ...start, updatedAt: t + 3000, startedAt: t + 3000 }));
+    });
+
+    it("카운트다운 중에는 온도도 탭 수도 못 올린다", async () => {
+      const t = Date.now() + 3000;
+      await seed({ status: "PLAYING", temperature: 0, updatedAt: t, startedAt: t, celebratedAt: null });
+      await assertFails(update(ref(db(A), `${G}/state`), { temperature: 2 }));
+      await assertFails(set(ref(db(A), `${G}/taps/${A}`), increment(1)));
+    });
+
+    it("친구도 온도를 마음대로 정해서 시작할 수는 없다", async () => {
+      await ready({ camera: false, players: true });
+      await assertFails(set(ref(db(A), `${G}/state`), { ...start, temperature: 80 }));
     });
 
     it("카메라가 꺼져 있으면 호스트도 시작할 수 없다", async () => {

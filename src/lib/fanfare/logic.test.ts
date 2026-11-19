@@ -9,6 +9,10 @@ import {
   derivePhase,
   effectiveTemperature,
   canStartFanfare,
+  canStartTogether,
+  countdownNumber,
+  everyoneReady,
+  COUNTDOWN_MS,
   hostEndAction,
   initialState,
   startState,
@@ -160,5 +164,47 @@ describe("canStartFanfare (시작 조건: 카메라 + 2명 이상)", () => {
 
   it("카메라 켜고 친구 1명 이상이면 시작", () => {
     expect(canStartFanfare({ cameraOn: true, playerCount: 1 })).toEqual({ ok: true, reason: null });
+  });
+});
+
+describe("호스트·영상 없는 빵빠레 (LEGACY.fanfareHost 꺼짐)", () => {
+  it("100도 뒤 폭죽 → 순위에서 끝난다 (암전·영상 공개 없음)", () => {
+    const s = { ...startState(initialState(), T0), status: "CELEBRATING" as const, temperature: 100, celebratedAt: T0 };
+    const opt = { reveal: false };
+    expect(derivePhase(s, T0, opt).phase).toBe("CELEBRATION");
+    expect(derivePhase(s, T0 + CELEBRATION_MS, opt)).toEqual({ phase: "RANKING", msUntilNext: null });
+    expect(derivePhase(s, T0 + 10 * 60_000, opt).phase).toBe("RANKING");
+  });
+
+  it("들어온 사람이 2명 이상이면 누구나 시작할 수 있다", () => {
+    expect(canStartTogether(1)).toEqual({ ok: false, reason: "2명부터 시작할 수 있어요" });
+    expect(canStartTogether(2)).toEqual({ ok: true, reason: null });
+  });
+});
+
+describe("모두 준비 → 3·2·1 카운트다운", () => {
+  it("모두 준비완료이고 2명 이상일 때만 카운트다운을 시작한다", () => {
+    expect(everyoneReady({})).toBe(false);
+    expect(everyoneReady({ a: { ready: true } })).toBe(false);
+    expect(everyoneReady({ a: { ready: true }, b: { ready: false } })).toBe(false);
+    expect(everyoneReady({ a: { ready: true }, b: {} })).toBe(false);
+    expect(everyoneReady({ a: { ready: true }, b: { ready: true } })).toBe(true);
+  });
+
+  it("시작 시각을 3초 뒤로 잡고, 그때까지는 카운트다운 단계다", () => {
+    const s = startState(initialState(), T0, COUNTDOWN_MS);
+    expect(s.startedAt).toBe(T0 + COUNTDOWN_MS);
+    expect(derivePhase(s, T0)).toEqual({ phase: "COUNTDOWN", msUntilNext: COUNTDOWN_MS });
+    expect(countdownNumber(s, T0)).toBe(3);
+    expect(countdownNumber(s, T0 + 1500)).toBe(2);
+    expect(countdownNumber(s, T0 + 2500)).toBe(1);
+    expect(derivePhase(s, T0 + COUNTDOWN_MS).phase).toBe("PLAYING");
+  });
+
+  it("카운트다운 중 탭은 무시하고, 온도도 식지 않는다", () => {
+    const s = startState(initialState(), T0, COUNTDOWN_MS);
+    expect(applyTap(s, T0 + 1000, 2)).toBe(s);
+    expect(effectiveTemperature(s, T0 + 1000)).toBe(0);
+    expect(applyTap(s, T0 + COUNTDOWN_MS, 2).temperature).toBeGreaterThan(0);
   });
 });

@@ -89,6 +89,6 @@ export const inputStyle: CSSProperties = {
 };
 
 export const GAME_META = {
-  fanfare: { emoji: "🎉", label: "빵빠레", desc: "주최자 카메라로 다 같이 실시간 리액션" },
-  gacha: { emoji: "🎰", label: "생일 가챠", desc: "캡슐 뽑고 퀴즈로 특수카드 모으기" },
+  fanfare: { emoji: "🎉", label: "빵빠레", desc: "다 같이 눌러서 우정 온도 100도 만들기" },
+  gacha: { emoji: "🎰", label: "생일 가챠", desc: "캡슐을 뽑아 등급별 선물 받기" },
 } as const;
