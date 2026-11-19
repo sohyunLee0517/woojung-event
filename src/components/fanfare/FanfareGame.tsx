@@ -37,6 +37,7 @@ import {
 import { FanfareHost, FanfareViewer, openCamera } from "@/lib/fanfare/rtc";
 import { cameraErrorMessage } from "@/lib/fanfare/camera";
 import TopBar from "@/components/ukiki/TopBar";
+import FanfareStage from "./FanfareStage";
 import { ghostButton, primaryButton, UK } from "@/components/ukiki/styles";
 
 type Me = { id: string; name: string; image: string | null };
@@ -56,18 +57,6 @@ async function fireConfetti() {
   };
   shoot();
 }
-
-// 3·2·1: 숫자마다 크게 튀어나왔다가 작아지며 사라진다 · 시작!: 화면 가운데서 터지듯 커진다
-const COUNTDOWN_CSS = `
-.fanfare-count{font-size:168px;font-weight:900;line-height:1;margin:0;
-  background:linear-gradient(180deg,#ffd700,#ff6b35 55%,#e03000);-webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 0 28px rgba(255,107,53,.7));animation:fanfare-pop 1s cubic-bezier(.2,.9,.3,1.4) both}
-@keyframes fanfare-pop{0%{transform:scale(2.6);opacity:0}25%{transform:scale(.9);opacity:1}45%{transform:scale(1.05)}80%{transform:scale(1);opacity:1}100%{transform:scale(.6);opacity:0}}
-.fanfare-go{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;pointer-events:none;
-  font-size:84px;font-weight:900;color:#fff;text-shadow:0 0 24px #ff6b35,0 0 60px #e03000;
-  background:radial-gradient(circle,rgba(255,107,53,.45) 0%,rgba(224,48,0,0) 65%);animation:fanfare-go .9s ease-out both}
-@keyframes fanfare-go{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.15);opacity:1}70%{transform:scale(1);opacity:1}100%{transform:scale(1.6);opacity:0}}
-`;
 
 const center: React.CSSProperties = {
   flex: 1,
@@ -472,7 +461,6 @@ export default function FanfareGame({
             border: p.id === me.id ? "1px solid #f97316" : "1px solid transparent",
           }}
         >
-          {!reveal && (p.ready ? "✅ " : "⏳ ")}
           {p.name}
           {p.id === me.id ? " (나)" : ""}
         </span>
@@ -507,15 +495,30 @@ export default function FanfareGame({
           </li>
         ))}
       </ul>
-      {!reveal && (
-        <a href={`/r/${roomCode}`} style={{ ...ghostButton, textDecoration: "none", marginTop: 8 }}>
-          방으로 돌아가기
-        </a>
-      )}
     </div>
   );
 
-  // ── 호스트 화면 ──
+  // ── 호스트 없는 빵빠레 (지금 기본) ──
+  if (!reveal) {
+    return (
+      <FanfareStage
+        backHref={`/r/${roomCode}`}
+        phase={phase}
+        temperature={temp}
+        count={count}
+        showGo={showGo}
+        players={playerList}
+        taps={taps}
+        meId={me.id}
+        tapFlash={tapFlash}
+        onReady={toggleReady}
+        onClose={closeWaiting}
+        onTap={onTap}
+      />
+    );
+  }
+
+  // ── 호스트 화면 (레거시) ──
   if (isHost) {
     return (
       <div style={{ position: "absolute", inset: 0, overflowY: "auto", color: "#fff", fontFamily: "sans-serif" }}>
@@ -604,50 +607,13 @@ export default function FanfareGame({
     );
   }
 
-  // ── 친구 화면 (호스트 없는 빵빠레에서는 모두 이 화면) ──
+  // ── 친구 화면 (레거시: 호스트가 있는 빵빠레) ──
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", color: "#fff", fontFamily: "sans-serif", userSelect: "none" }}>
-      <style>{COUNTDOWN_CSS}</style>
       <div style={{ maxWidth: 480, width: "100%", margin: "0 auto", padding: 16, flex: 1, display: "flex", flexDirection: "column" }}>
         {header}
 
-        {phase === "WAITING" && !reveal && (
-          <div style={center}>
-            <p style={{ fontSize: 56 }}>🌡️</p>
-            <p style={{ fontSize: 18, fontWeight: 800 }}>
-              {allReady ? "곧 시작해요!" : `준비 ${playerList.filter((p) => p.ready).length}/${playerList.length}`}
-            </p>
-            {chips}
-            <button
-              onClick={toggleReady}
-              style={{
-                ...primaryButton,
-                width: "100%",
-                maxWidth: 320,
-                background: myReady ? "rgba(255,255,255,.12)" : primaryButton.background,
-                color: myReady ? "#fff" : primaryButton.color,
-              }}
-            >
-              {myReady ? "✅ 준비완료 (취소하려면 눌러요)" : "🔥 준비완료"}
-            </button>
-            {playerList.length < 2 && <p style={{ fontSize: 13, color: UK.yellow }}>2명부터 시작할 수 있어요</p>}
-            <button onClick={closeWaiting} style={{ ...ghostButton, padding: "8px 14px", fontSize: 13, opacity: 0.7 }}>
-              빵빠레 닫기
-            </button>
-          </div>
-        )}
-
-        {phase === "COUNTDOWN" && (
-          <div style={{ ...center, gap: 8 }}>
-            <p style={{ fontSize: 14, opacity: 0.6, letterSpacing: 4 }}>모두 준비 완료!</p>
-            <p key={count} className="fanfare-count">
-              {count}
-            </p>
-            <p style={{ fontSize: 14, opacity: 0.6 }}>🔥 버튼을 마구 눌러 온도를 올려요</p>
-          </div>
-        )}
-
-        {phase === "WAITING" && reveal && (
+        {phase === "WAITING" && (
           <div style={center}>
             <p style={{ fontSize: 56 }}>🌡️</p>
             <p style={{ fontSize: 18, fontWeight: 800 }}>{hostName}님이 시작하길 기다리는 중</p>
@@ -659,12 +625,6 @@ export default function FanfareGame({
             ) : (
               <p style={{ fontSize: 13, color: UK.yellow }}>준비 완료! 곧 시작해요</p>
             )}
-          </div>
-        )}
-
-        {showGo && (
-          <div className="fanfare-go" aria-hidden>
-            시작! 🔥
           </div>
         )}
 
