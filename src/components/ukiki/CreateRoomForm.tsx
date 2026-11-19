@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ghostButton, inputStyle, primaryButton, UK } from "./styles";
 
 export default function CreateRoomForm() {
@@ -10,6 +11,7 @@ export default function CreateRoomForm() {
   const [name, setName] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [password, setPassword] = useState("");
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -78,7 +80,12 @@ export default function CreateRoomForm() {
         type="button"
         role="switch"
         aria-checked={visibility === "private"}
-        onClick={() => setVisibility((v) => (v === "private" ? "public" : "private"))}
+        onClick={() => {
+          // 비밀방을 켜면 바로 비밀번호 칸에 커서 (아이폰은 누른 순간에 포커스해야 키보드가 뜬다)
+          const next = visibility === "private" ? "public" : "private";
+          flushSync(() => setVisibility(next));
+          if (next === "private") passwordRef.current?.focus();
+        }}
         style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px", border: "none", background: "none", color: "#fff", cursor: "pointer", fontSize: 15 }}
       >
         <span style={{ flex: 1, textAlign: "left" }}>🔒 비밀방</span>
@@ -99,6 +106,7 @@ export default function CreateRoomForm() {
       </button>
       {visibility === "private" && (
         <input
+          ref={passwordRef}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="비밀번호 (4~20자)"
