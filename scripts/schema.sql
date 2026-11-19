@@ -362,3 +362,26 @@ create table if not exists uk_pirate_stabs (
   primary key (game_id, seq),
   unique (game_id, hole)
 );
+
+create unique index if not exists uk_one_active_snack
+  on uk_room_games (room_code) where game_type = 'snack' and status = 'active'
+;
+
+-- 과자 나눠먹기 한 판. members 는 시작할 때 들어와 있던 사람(자를 사람)
+create table if not exists uk_snack_games (
+  game_id    bigint      primary key references uk_room_games(id) on delete cascade,
+  started_at timestamptz,
+  members    text[],
+  status     text        not null default 'playing' check (status in ('playing', 'fail', 'success')),
+  total      int
+);
+
+create table if not exists uk_snack_players (
+  game_id   bigint      not null references uk_room_games(id) on delete cascade,
+  kakao_id  text        not null,
+  ready     boolean     not null default false,
+  joined_at timestamptz not null default clock_timestamp(),
+  cut       int         check (cut between 1 and 100),
+  cut_at    timestamptz,
+  primary key (game_id, kakao_id)
+);
