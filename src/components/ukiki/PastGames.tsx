@@ -39,7 +39,7 @@ function PastGameCard({ game }: { game: PastGame }) {
             {game.type === "fanfare" && ` · 호스트 ${game.hostName ?? "?"}`}
           </span>
         </span>
-        <span aria-hidden style={{ opacity: 0.5, display: "inline-block", transform: open ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform .2s" }}>›</span>
+        <span aria-hidden style={{ opacity: 0.5, fontSize: "2em", lineHeight: 1, display: "inline-block", transform: open ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform .2s" }}>›</span>
       </button>
       {open && (
         <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
