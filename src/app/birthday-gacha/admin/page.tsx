@@ -8,6 +8,7 @@ import { notifyQuizWindow } from "@/lib/birthday-gacha/notify";
 import BackButton from "./BackButton";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { enabledGames, GAME_TYPES, setGameEnabled } from "@/lib/ukiki/features";
+import { listReports, REPORT_CATEGORIES } from "@/lib/ukiki/reports";
 import { GAME_META } from "@/components/ukiki/styles";
 import Toggle from "@/components/ukiki/Toggle";
 
@@ -76,7 +77,7 @@ export default async function AdminPage() {
     );
   }
 
-  const [overview, switches] = await Promise.all([getAdminOverview(), enabledGames()]);
+  const [overview, switches, reports] = await Promise.all([getAdminOverview(), enabledGames(), listReports(30)]);
   const missed = overview.rows.filter((r) => r.warning === "이번 알림 누락").length;
 
   return (
@@ -111,6 +112,35 @@ export default async function AdminPage() {
               </form>
             );
           })}
+        </section>
+
+        <section style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,.06)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700 }}>🚨 신고 {reports.length}건 (최근 30건)</h2>
+          {reports.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>아직 신고가 없어요.</p>}
+          {reports.map((r) => (
+            <div
+              key={r.id}
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                background: "rgba(255,255,255,.05)",
+                border: r.category === "child_safety" ? "1px solid rgba(220,38,38,.7)" : "1px solid transparent",
+                fontSize: 13,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <p style={{ fontWeight: 700 }}>
+                {REPORT_CATEGORIES.find((c) => c.value === r.category)?.label ?? r.category}
+                {r.roomCode && ` · 방 ${r.roomCode}`}
+              </p>
+              <p style={{ whiteSpace: "pre-wrap" }}>{r.body}</p>
+              <p style={{ opacity: 0.55 }}>
+                {r.reporterName ?? r.reporterKakaoId} · {clock(r.createdAt)}
+              </p>
+            </div>
+          ))}
         </section>
 
         <section style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,.06)" }}>

@@ -298,3 +298,14 @@ create table if not exists uk_feature_flags (
 -- 회원 탈퇴: 이름·사진·위치·알림 기기를 지우고 시각을 남긴다 (다시 로그인하면 새로 시작)
 alter table players add column if not exists deleted_at timestamptz
 ;
+
+-- 앱 안 신고하기 (아동 안전·괴롭힘 등). 관리자 페이지에서 본다.
+create table if not exists uk_reports (
+  id                bigserial   primary key,
+  reporter_kakao_id text        not null,
+  category          text        not null,
+  body              text        not null,
+  room_code         text,
+  status            text        not null default 'open',
+  created_at        timestamptz not null default now()
+);
