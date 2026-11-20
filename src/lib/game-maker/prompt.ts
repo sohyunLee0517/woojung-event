@@ -83,6 +83,21 @@ export function buildMessages(history: GameVersionInput[], request: string): Ant
   ];
 }
 
+/** 자동 수정: 자동 테스트에서 나온 문제를 주고 고친 전체 코드를 받는다 */
+export function buildFixMessages(history: GameVersionInput[], problems: string[]): Anthropic.MessageParam[] {
+  const current = history.length ? history[history.length - 1].html : "";
+  const list = problems.map((p) => `- ${p}`).join("\n");
+  return [
+    {
+      role: "user",
+      content:
+        `지금 게임 코드:\n\`\`\`html\n${current}\n\`\`\`\n\n` +
+        `이 게임을 두 명(나·연습 친구)으로 끝까지 자동 실행해 봤더니 이런 문제가 있었어:\n${list}\n\n` +
+        "문제만 고치고, 게임의 기능과 재미는 그대로 둔 완성된 코드 전체를 같은 형식으로 다시 줘.",
+    },
+  ];
+}
+
 export type ParsedGame =
   | { ok: true; title: string; emoji: string; rules: string; html: string }
   | { ok: false; error: string }

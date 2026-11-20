@@ -6,7 +6,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSql } from "@/lib/db";
 import { refundBananas, spendBananas } from "@/lib/bananas/store";
 import { PROMPT_COST } from "@/lib/bananas/rules";
-import { buildMessages, parseGameResponse, PROMPT_MAX, SYSTEM_PROMPT, validateGameHtml } from "./prompt";
+import { buildFixMessages, buildMessages, parseGameResponse, PROMPT_MAX, SYSTEM_PROMPT, validateGameHtml } from "./prompt";
+import { AUTOFIX_MAX } from "./smoke";
 import { getAiGameForEdit, loadAiGame } from "./store";
 
 export const GAME_MODEL = "claude-opus-5-5";
@@ -30,7 +31,7 @@ export async function startGamePrompt(id: number, me: string, rawPrompt: string)
 
   const claimed = (await getSql()`
     update uk_ai_games set pending_prompt = ${prompt}, pending_ledger_id = ${spent.ledgerId}, pending_since = now(),
-      last_error = null, last_suggestions = null
+      last_error = null, last_suggestions = null, autofix_count = 0, pending_fix = null
     where id = ${id} and pending_prompt is null
     returning id
   `) as unknown[];
@@ -39,6 +40,27 @@ export async function startGamePrompt(id: number, me: string, rawPrompt: string)
     return { ok: false, reason: "busy" };
   }
   return { ok: true };
+}
+
+export type AutoFixResult = { ok: true; attempt: number } | { ok: false; reason: "not_found" | "busy" | "not_latest" | "limit" };
+
+/** 확정 전 자동 테스트에서 문제가 나왔을 때: AI가 고친 새 버전을 만든다 (바나나 없음, 사용자 프롬프트 한 번에 최대 3번) */
+export async function startAutoFix(id: number, me: string, version: number, problems: string[]): Promise<AutoFixResult> {
+  const game = await getAiGameForEdit(id, me);
+  if (!game) return { ok: false, reason: "not_found" };
+  if (game.pending) return { ok: false, reason: "busy" };
+  if (game.versions.at(-1)?.version !== version) return { ok: false, reason: "not_latest" };
+  if (game.autofixLeft <= 0) return { ok: false, reason: "limit" };
+  const attempt = AUTOFIX_MAX - game.autofixLeft + 1;
+  const fix = problems.slice(0, 10).map((p) => p.slice(0, 300));
+  const claimed = (await getSql()`
+    update uk_ai_games set autofix_count = autofix_count + 1, pending_fix = ${fix},
+      pending_prompt = ${`🔧 자동 수정 (${attempt}/${AUTOFIX_MAX})`}, pending_ledger_id = null, pending_since = now(),
+      last_error = null, last_suggestions = null
+    where id = ${id} and pending_prompt is null and autofix_count < ${AUTOFIX_MAX}
+    returning id
+  `) as unknown[];
+  return claimed.length ? { ok: true, attempt } : { ok: false, reason: "busy" };
 }
 
 /** 진짜 AI 호출 (Claude). 긴 코드를 받으니 스트리밍으로 받고, 안전 거절 시 다른 모델로 넘긴다 */
@@ -79,12 +101,13 @@ export async function finishGamePrompt(id: number, me: string, callModel: ModelC
     const history = (await sql`
       select prompt, html from uk_ai_game_versions where ai_game_id = ${id} order by version
     `) as { prompt: string; html: string }[];
-    const text = await callModel(SYSTEM_PROMPT, buildMessages(history, prompt));
+    const fix = g.pending_fix;
+    const text = await callModel(SYSTEM_PROMPT, fix ? buildFixMessages(history, fix) : buildMessages(history, prompt));
     const parsed = parseGameResponse(text);
     if (!parsed.ok && "blocked" in parsed) {
       // 내용 기준(13세)에 걸림: 만들지 않고 이유·대안만 남기고 바나나는 돌려준다
       await sql`
-        update uk_ai_games set pending_prompt = null, pending_ledger_id = null, pending_since = null,
+        update uk_ai_games set pending_prompt = null, pending_ledger_id = null, pending_since = null, pending_fix = null,
           last_error = ${`이런 내용은 만들 수 없어요. ${parsed.error}`}, last_suggestions = ${parsed.suggestions}
         where id = ${id}
       `;
@@ -102,7 +125,7 @@ export async function finishGamePrompt(id: number, me: string, callModel: ModelC
         returning version
       )
       update uk_ai_games set pending_prompt = null, pending_ledger_id = null, pending_since = null, last_error = null,
-        updated_at = now(),
+        pending_fix = null, updated_at = now(),
         title = case when status = 'draft' then ${parsed.title} else title end,
         emoji = case when status = 'draft' then ${parsed.emoji} else emoji end
       where id = ${id}
@@ -110,8 +133,8 @@ export async function finishGamePrompt(id: number, me: string, callModel: ModelC
   } catch (e) {
     console.error("[game-maker] 생성 실패", e);
     await sql`
-      update uk_ai_games set pending_prompt = null, pending_ledger_id = null, pending_since = null,
-        last_error = ${`${friendly(e)} 바나나는 돌려드렸어요.`}
+      update uk_ai_games set pending_prompt = null, pending_ledger_id = null, pending_since = null, pending_fix = null,
+        last_error = ${ledgerId !== null ? `${friendly(e)} 바나나는 돌려드렸어요.` : friendly(e)}
       where id = ${id}
     `;
     if (ledgerId !== null) await refundBananas(me, ledgerId);

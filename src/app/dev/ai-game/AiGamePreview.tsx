@@ -1,6 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import PreviewPlayground from "@/components/game-maker/PreviewPlayground";
+import { runSmokeTest } from "@/components/game-maker/smoke-runner";
+
+// 문제 있는 예제: 누르면 오류가 나고, 끝나지도 않는다
+const BROKEN = `<button id="b" style="font-size:40px">누르기</button>
+<script>
+  document.getElementById("b").addEventListener("pointerdown", function(){ null.boom(); });
+  ukiki.on(function(){});
+</script>`;
 
 // 예제: 10초 동안 많이 누르기. 누를 때마다 모두에게 알려서 서로의 숫자가 보이고, 끝나면 각자 점수를 낸다.
 const SAMPLE = `
@@ -36,9 +45,21 @@ const SAMPLE = `
 </script>`;
 
 export default function AiGamePreview() {
+  const [result, setResult] = useState("");
+  const test = async (label: string, html: string) => {
+    setResult(`${label}: 테스트 중…`);
+    const t = Date.now();
+    const r = await runSmokeTest(html);
+    setResult(`${label}: ${r.ok ? "✅ 통과" : "❌ 실패"} (${((Date.now() - t) / 1000).toFixed(1)}초)${r.problems.length ? " · " + r.problems.join(" / ") : ""}`);
+  };
   return (
     <main style={{ position: "absolute", inset: 0, background: "#0a0a0a", color: "#fff", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
       <h1 style={{ fontSize: 18, fontWeight: 800 }}>🤖 AI 게임 미리보기 (예제)</h1>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => test("좋은 예제", SAMPLE)}>자동 테스트: 좋은 예제</button>
+        <button onClick={() => test("문제 예제", BROKEN)}>자동 테스트: 문제 예제</button>
+      </div>
+      <p id="smoke-result" style={{ fontSize: 13 }}>{result}</p>
       <div style={{ flex: 1, minHeight: 0, maxWidth: 480, width: "100%", margin: "0 auto" }}>
         <PreviewPlayground html={SAMPLE} title="바나나 연타" emoji="🍌" />
       </div>

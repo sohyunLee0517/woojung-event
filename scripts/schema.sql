@@ -541,3 +541,13 @@ alter table uk_banana_ledger add constraint uk_banana_ledger_reason_check check 
 create unique index if not exists uk_banana_retro_once
   on uk_banana_ledger (kakao_id, reason, ref_id) where reason in ('retro_play', 'retro_win')
 ;
+
+-- 확정 전 자동 테스트 결과(버전마다)와 자동 수정 횟수 (사용자 프롬프트 한 번마다 최대 3번, 바나나 없음)
+alter table uk_ai_game_versions add column if not exists tested_ok boolean
+;
+alter table uk_ai_game_versions add column if not exists test_problems text[]
+;
+alter table uk_ai_games add column if not exists autofix_count int not null default 0
+;
+alter table uk_ai_games add column if not exists pending_fix text[]
+;

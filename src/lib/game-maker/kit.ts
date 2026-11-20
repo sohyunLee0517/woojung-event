@@ -11,6 +11,7 @@
 //
 // 준비완료 → 3·2·1 → 결과 → 방으로 돌아가기는 앱이 모든 게임에서 똑같이 한다. 게임은 '본게임'만 그린다.
 // 이 파일은 순수 함수만 둔다 (서버·브라우저 어디서나 쓴다).
+import { SMOKE_HARNESS_SCRIPT, SMOKE_KIT_SPY_SCRIPT } from "./smoke";
 
 export type KitPlayer = { id: string; name: string; emoji: string };
 export type KitBoot = { mode: "play" | "preview"; me: string; players: KitPlayer[]; seed: number };
@@ -90,15 +91,19 @@ function safeJson(v: unknown) {
   return JSON.stringify(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
 
-/** iframe srcdoc 로 넣을 완성 문서: CSP → 기본 스타일 → 부팅 정보·키트 → 게임 */
-export function buildGameDocument(gameHtml: string, boot: KitBoot): string {
+/**
+ * iframe srcdoc 로 넣을 완성 문서: CSP → 기본 스타일 → (테스트면 시간 빨리 감기) → 부팅 정보·키트 → (테스트면 키트 기록) → 게임
+ */
+export function buildGameDocument(gameHtml: string, boot: KitBoot, opts: { test?: boolean } = {}): string {
   return [
     "<!doctype html><html><head>",
     `<meta http-equiv="Content-Security-Policy" content="${GAME_CSP}">`,
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">',
     `<style>${BASE_CSS}</style>`,
+    opts.test ? `<script>${SMOKE_HARNESS_SCRIPT}</script>` : "",
     `<script>window.__UKIKI_BOOT__=${safeJson(boot)};</script>`,
     `<script>${KIT_SCRIPT}</script>`,
+    opts.test ? `<script>${SMOKE_KIT_SPY_SCRIPT}</script>` : "",
     "</head><body>",
     stripDocumentShell(gameHtml),
     "</body></html>",

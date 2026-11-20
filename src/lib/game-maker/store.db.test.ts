@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getSql } from "@/lib/db";
 import { createRoom, enterRoom, listPastGames } from "@/lib/ukiki/rooms";
 import { bananaBalance, grantBananas, myBananas } from "@/lib/bananas/store";
-import { AI_GAMES_PER_ROOM, createAiGame, deleteAiGame, getAiGameForEdit, getMyDraft, listRoomAiGames, publishAiGame } from "./store";
-import { finishGamePrompt, startGamePrompt } from "./generate";
+import { AI_GAMES_PER_ROOM, createAiGame, deleteAiGame, getAiGameForEdit, getMyDraft, listRoomAiGames, publishAiGame, recordTestResult } from "./store";
+import { finishGamePrompt, startAutoFix, startGamePrompt } from "./generate";
 import { createAiRound, endAiRound, getAiRoundState, joinAiRound, postAiEvent, setAiRoundReady, submitAiScore } from "./round-store";
 
 // AI 게임 만들기 + 방에서 한 판 (실제 DB, AI 는 가짜)
@@ -112,10 +112,39 @@ describe.skipIf(!hasDb)("AI 게임 만들기 (실제 DB)", () => {
     expect((await getAiGameForEdit(gameId, A))?.lastError).toContain("ukiki.end");
   });
 
+  it("확정은 자동 테스트를 통과한 버전만. 실패하면 AI 자동 수정(바나나 없이, 최대 3번)", async () => {
+    expect(await publishAiGame(gameId, A, 1)).toEqual({ ok: false, reason: "untested" });
+    await recordTestResult(gameId, A, 1, { ok: false, problems: ["실행 중 오류: x"] });
+    expect((await getAiGameForEdit(gameId, A))?.versions[0].test).toEqual({ ok: false, problems: ["실행 중 오류: x"] });
+    expect(await publishAiGame(gameId, A, 1)).toEqual({ ok: false, reason: "untested" });
+
+    const balance = await bananaBalance(A);
+    expect(await startAutoFix(gameId, A, 1, ["실행 중 오류: x"])).toEqual({ ok: true, attempt: 1 });
+    expect((await getAiGameForEdit(gameId, A))?.pending).toEqual({ prompt: "🔧 자동 수정 (1/3)" });
+    await finishGamePrompt(gameId, A, fakeModel(GOOD));
+    const g = await getAiGameForEdit(gameId, A);
+    expect(g?.versions.map((v) => [v.version, v.prompt])).toEqual([
+      [1, "탭 대결 게임"],
+      [2, "🔧 자동 수정 (1/3)"],
+    ]);
+    expect(await bananaBalance(A)).toBe(balance);
+    // 마지막 버전만 고칠 수 있다
+    expect(await startAutoFix(gameId, A, 1, ["x"])).toEqual({ ok: false, reason: "not_latest" });
+    expect(await startAutoFix(gameId, A, 2, ["x"])).toEqual({ ok: true, attempt: 2 });
+    await finishGamePrompt(gameId, A, fakeModel(GOOD));
+    expect(await startAutoFix(gameId, A, 3, ["x"])).toEqual({ ok: true, attempt: 3 });
+    await finishGamePrompt(gameId, A, fakeModel(GOOD));
+    expect(await startAutoFix(gameId, A, 4, ["x"])).toEqual({ ok: false, reason: "limit" });
+    // 사용자가 다시 프롬프트를 쓰면 다시 3번
+    expect((await getAiGameForEdit(gameId, A))?.autofixLeft).toBe(0);
+    await getSql()`delete from uk_ai_game_versions where ai_game_id = ${gameId} and version > 1`;
+  });
+
   it("만든 사람만 고치고 확정할 수 있다. 확정 전에는 방 목록에 안 보인다", async () => {
     expect(await getAiGameForEdit(gameId, B)).toBeNull();
     expect(await publishAiGame(gameId, B, 1)).toEqual({ ok: false });
     expect((await listRoomAiGames(room, B))?.published).toEqual([]);
+    await recordTestResult(gameId, A, 1, { ok: true, problems: [] });
     expect(await publishAiGame(gameId, A, 1)).toEqual({ ok: true });
     const list = await listRoomAiGames(room, B);
     expect(list?.published.map((g) => [g.id, g.title, g.emoji])).toEqual([[gameId, "탭 대결", "👆"]]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMessages, parseGameResponse, SYSTEM_PROMPT, validateGameHtml } from "./prompt";
+import { buildFixMessages, buildMessages, parseGameResponse, SYSTEM_PROMPT, validateGameHtml } from "./prompt";
 
 const REPLY = [
   "TITLE: 바나나 받기",
@@ -98,5 +98,14 @@ describe("AI 에게 보낼 대화", () => {
     expect(text).toContain("<p>v2</p>");
     expect(text).not.toContain("<p>v1</p>");
     expect(text).toContain("이번에 고칠 것: 공을 빨간색으로");
+  });
+
+  it("자동 수정: 지금 코드와 테스트에서 나온 문제를 주고 고친 전체 코드를 받는다", () => {
+    const msgs = buildFixMessages([{ prompt: "공 피하기", html: "<p>v1</p>" }], ["실행 중 오류: x", "게임이 멈췄어요"]);
+    const text = msgs[0].content as string;
+    expect(text).toContain("<p>v1</p>");
+    expect(text).toContain("- 실행 중 오류: x");
+    expect(text).toContain("- 게임이 멈췄어요");
+    expect(text).toContain("기능과 재미는 그대로");
   });
 });

@@ -2,6 +2,8 @@
 // 방에 대한 건 '이 방 멤버인가' 확인 하나뿐이라 나중에 다른 곳(홈·마을)으로 옮기기 쉽다.
 import { getSql } from "@/lib/db";
 import { refundBananas } from "@/lib/bananas/store";
+import { AUTOFIX_MAX } from "./smoke";
+import { validateGameHtml } from "./prompt";
 
 /** 이만큼 지나도 끝나지 않은 생성은 실패로 보고 환불한다 (서버가 중간에 멈춘 경우) */
 export const PENDING_STALE_MS = 6 * 60_000;
@@ -25,7 +27,17 @@ export type AiGameSummary = {
   updatedAt: string;
 };
 
-export type AiGameVersion = { version: number; prompt: string; title: string; emoji: string; rules: string | null; html: string; createdAt: string };
+export type AiGameVersion = {
+  version: number;
+  prompt: string;
+  title: string;
+  emoji: string;
+  rules: string | null;
+  html: string;
+  createdAt: string;
+  /** 확정 전 자동 테스트 결과 (안 했으면 null) */
+  test: { ok: boolean; problems: string[] } | null;
+};
 
 export type AiGameEdit = {
   id: number;
@@ -40,6 +52,8 @@ export type AiGameEdit = {
   lastError: string | null;
   /** 내용 기준에 걸려 못 만들었을 때 AI가 제안한 대안 게임 */
   suggestions: string[];
+  /** 이번 프롬프트에서 남은 자동 수정 횟수 */
+  autofixLeft: number;
 };
 
 async function publishedCount(code: string) {
@@ -99,12 +113,15 @@ type GameRow = {
   pending_since: string | null;
   last_error: string | null;
   last_suggestions: string[] | null;
+  autofix_count: number;
+  pending_fix: string[] | null;
 };
 
 export async function loadAiGame(id: number): Promise<GameRow | null> {
   const rows = (await getSql()`
     select id, room_code, creator_kakao_id, title, emoji, status, published_version,
-           pending_prompt, pending_ledger_id, pending_since, last_error, last_suggestions
+           pending_prompt, pending_ledger_id, pending_since, last_error, last_suggestions,
+           autofix_count, pending_fix
     from uk_ai_games where id = ${id}
   `) as GameRow[];
   return rows[0] ?? null;
@@ -129,9 +146,19 @@ export async function getAiGameForEdit(id: number, me: string): Promise<AiGameEd
   if (!g || g.creator_kakao_id !== me || g.status !== "draft" || !(await isMember(g.room_code, me))) return null;
   g = await clearStalePending(g);
   const versions = (await getSql()`
-    select version, prompt, title, emoji, rules, html, created_at from uk_ai_game_versions
+    select version, prompt, title, emoji, rules, html, created_at, tested_ok, test_problems from uk_ai_game_versions
     where ai_game_id = ${id} order by version
-  `) as { version: number; prompt: string; title: string; emoji: string; rules: string | null; html: string; created_at: string }[];
+  `) as {
+    version: number;
+    prompt: string;
+    title: string;
+    emoji: string;
+    rules: string | null;
+    html: string;
+    created_at: string;
+    tested_ok: boolean | null;
+    test_problems: string[] | null;
+  }[];
   return {
     id: Number(g.id),
     roomCode: g.room_code,
@@ -147,10 +174,12 @@ export async function getAiGameForEdit(id: number, me: string): Promise<AiGameEd
       rules: v.rules,
       html: v.html,
       createdAt: new Date(v.created_at).toISOString(),
+      test: v.tested_ok === null ? null : { ok: v.tested_ok, problems: v.test_problems ?? [] },
     })),
     pending: g.pending_prompt ? { prompt: g.pending_prompt } : null,
     lastError: g.last_error,
     suggestions: g.last_suggestions ?? [],
+    autofixLeft: Math.max(0, AUTOFIX_MAX - Number(g.autofix_count ?? 0)),
   };
 }
 
@@ -192,15 +221,33 @@ export async function listRoomAiGames(
   return { published: all.filter((g) => g.status === "published"), draft: all.find((g) => g.status === "draft") ?? null, limit: AI_GAMES_PER_ROOM };
 }
 
-/** 확정: 고른 버전으로 방 사람들이 하는 게임이 된다. 임시저장은 비고, 확정 뒤에는 고칠 수 없다. 방마다 최대 10개 */
-export async function publishAiGame(id: number, me: string, version: number): Promise<{ ok: boolean; reason?: "full" }> {
+/** 확정 전 자동 테스트 결과 기록 (만든 사람의 화면에서 돌린 결과) */
+export async function recordTestResult(id: number, me: string, version: number, result: { ok: boolean; problems: string[] }) {
+  await getSql()`
+    update uk_ai_game_versions v set tested_ok = ${result.ok}, test_problems = ${result.problems.slice(0, 10).map((p) => p.slice(0, 300))}
+    from uk_ai_games g
+    where v.ai_game_id = ${id} and v.version = ${version} and g.id = v.ai_game_id and g.creator_kakao_id = ${me} and g.status = 'draft'
+  `;
+}
+
+/**
+ * 확정: 자동 테스트를 통과한 버전만 방 사람들이 하는 게임이 된다.
+ * 임시저장은 비고, 확정 뒤에는 고칠 수 없다. 방마다 최대 10개.
+ */
+export async function publishAiGame(id: number, me: string, version: number): Promise<{ ok: boolean; reason?: "full" | "untested" }> {
   const g = await loadAiGame(id);
-  if (g && g.status === "draft" && (await publishedCount(g.room_code)) >= AI_GAMES_PER_ROOM) return { ok: false, reason: "full" };
+  if (!g || g.status !== "draft" || g.creator_kakao_id !== me) return { ok: false };
+  if ((await publishedCount(g.room_code)) >= AI_GAMES_PER_ROOM) return { ok: false, reason: "full" };
+  const tested = (await getSql()`
+    select tested_ok, html from uk_ai_game_versions where ai_game_id = ${id} and version = ${version}
+  `) as { tested_ok: boolean | null; html: string }[];
+  // 서버에서도 다시 확인: 테스트 통과 기록 + 정적 검사
+  if (!tested[0] || tested[0].tested_ok !== true || validateGameHtml(tested[0].html).length) return { ok: false, reason: "untested" };
   const rows = (await getSql()`
     update uk_ai_games g set status = 'published', published_version = v.version, title = v.title, emoji = v.emoji, updated_at = now()
     from uk_ai_game_versions v
     where g.id = ${id} and g.creator_kakao_id = ${me} and g.status = 'draft' and g.pending_prompt is null
-      and v.ai_game_id = g.id and v.version = ${version}
+      and v.ai_game_id = g.id and v.version = ${version} and v.tested_ok = true
       and exists (select 1 from uk_room_members m where m.room_code = g.room_code and m.kakao_id = ${me})
       and (select count(*) from uk_ai_games o where o.room_code = g.room_code and o.status = 'published') < ${AI_GAMES_PER_ROOM}
     returning g.id
