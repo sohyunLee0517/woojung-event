@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "@/components/ukiki/TopBar";
 import { ghostButton, inputStyle, pageStyle, columnStyle, primaryButton, UK } from "@/components/ukiki/styles";
 import { PROMPT_COST } from "@/lib/bananas/rules";
@@ -10,7 +10,8 @@ import { PROMPT_MAX } from "@/lib/game-maker/prompt";
 import { AUTOFIX_MAX } from "@/lib/game-maker/smoke";
 import { runSmokeTest } from "./smoke-runner";
 import type { AiGameEdit } from "@/lib/game-maker/store";
-import PreviewPlayground from "./PreviewPlayground";
+import PreviewPopup from "./PreviewPopup";
+import { clearEditorMemory, loadEditorMemory, pickVersion, saveEditorMemory } from "@/lib/game-maker/editor-memory";
 import { BananaChip } from "./MakerHome";
 
 const PENDING_POLL_MS = 3000;
@@ -39,6 +40,9 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
   const [passedVersion, setPassedVersion] = useState<number | null>(null);
   const [fixedNote, setFixedNote] = useState(false);
   const [testProblems, setTestProblems] = useState<string[]>([]);
+  // 미리보기 팝업 (confirm: 자동 수정된 버전을 보여 주고 바로 확정할 수 있게)
+  const [popup, setPopup] = useState<{ version: number; confirm: boolean } | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(api, { cache: "no-store" }).catch(() => null);
@@ -50,11 +54,38 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
   }, [api]);
   useEffect(() => void load(), [load]);
 
-  // 새 버전이 생기면 그 버전을 보여 준다
+  // 처음 불러올 때: 30분 안에 보던 화면이면 그대로 (쓰다 만 프롬프트·고른 버전·스크롤). 그 뒤 새 버전이 생기면 그 버전으로.
   const versionCount = game?.versions.length ?? 0;
+  const restored = useRef(false);
   useEffect(() => {
-    if (versionCount) setSelected(game?.versions.at(-1)?.version ?? null);
-  }, [versionCount]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!game) return;
+    const versions = game.versions.map((v) => v.version);
+    if (!restored.current) {
+      restored.current = true;
+      const mem = loadEditorMemory(localStorage, aiId, Date.now());
+      setSelected(pickVersion(versions, mem?.selected ?? null));
+      if (mem) {
+        if (mem.prompt) setPrompt(mem.prompt);
+        setTimeout(() => mainRef.current?.scrollTo({ top: mem.scrollY }), 50);
+      }
+      return;
+    }
+    setSelected(pickVersion(versions, null));
+  }, [versionCount, !!game]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 보던 상태 저장 (이 기기에만, 30분)
+  const remember = useCallback(() => {
+    if (!restored.current) return;
+    saveEditorMemory(localStorage, aiId, { prompt, selected, scrollY: mainRef.current?.scrollTop ?? 0 }, Date.now());
+  }, [aiId, prompt, selected]);
+  useEffect(() => {
+    remember();
+  }, [remember]);
+  const scrollSave = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onScroll = () => {
+    if (scrollSave.current) clearTimeout(scrollSave.current);
+    scrollSave.current = setTimeout(remember, 300);
+  };
 
   const pending = !!game?.pending;
   useEffect(() => {
@@ -103,7 +134,11 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
 
   const doPublish = async (v: { version: number; title: string; emoji: string }) => {
     const r = (await post({ action: "publish", version: v.version })) as { ok: boolean; reason?: string } | null;
-    if (r?.ok) setPublished({ title: v.title, emoji: v.emoji });
+    if (r?.ok) {
+      clearEditorMemory(localStorage, aiId);
+      setPopup(null);
+      setPublished({ title: v.title, emoji: v.emoji });
+    }
     else if (r?.reason === "full") setMessage("방 게임이 10개로 가득 찼어요. 내가 만든 게임을 지우면 확정할 수 있어요.");
     else if (r?.reason === "untested") setMessage("자동 테스트를 통과한 버전만 확정할 수 있어요.");
     else setMessage("확정하지 못했어요.");
@@ -137,6 +172,7 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
         setFixedNote(true);
         await fetchGame();
         setSelected(latest.version);
+        setPopup({ version: latest.version, confirm: true });
         return;
       }
       const left = (await fetchGame())?.autofixLeft ?? 0;
@@ -167,7 +203,10 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
     if (busy) return;
     if (!confirmRemove) return setConfirmRemove(true);
     const r = await post({ action: "delete" });
-    if (r?.ok) router.push(`/r/${roomCode}/maker`);
+    if (r?.ok) {
+      clearEditorMemory(localStorage, aiId);
+      router.push(`/r/${roomCode}/maker`);
+    }
   };
 
   if (published) {
@@ -205,7 +244,7 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
   const canPay = balance !== null && balance >= PROMPT_COST;
 
   return (
-    <main style={pageStyle}>
+    <main ref={mainRef} onScroll={onScroll} style={pageStyle}>
       <style>{CSS}</style>
       <div style={{ ...columnStyle, gap: 14 }}>
         <TopBar
@@ -266,9 +305,17 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
               v{version.version} 요청: “{version.prompt}”
             </p>
             {version.rules && <p style={{ fontSize: 14 }}>📜 {version.rules}</p>}
-            <div style={{ height: "62vh", minHeight: 380 }}>
-              <PreviewPlayground key={version.version} html={version.html} title={version.title} emoji={version.emoji} />
-            </div>
+            <button
+              onClick={() => setPopup({ version: version.version, confirm: false })}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 16, border: `1px solid ${UK.line}`, background: "radial-gradient(circle at 20% 30%, #2a2140, #0d0d14 70%)", color: "#fff", textAlign: "left" }}
+            >
+              <span style={{ fontSize: 40 }}>{version.emoji}</span>
+              <span style={{ flex: 1 }}>
+                <b style={{ fontSize: 16 }}>{version.title}</b>
+                <span style={{ display: "block", fontSize: 12, opacity: 0.6 }}>v{version.version} · 나와 연습 친구 둘이 실제 화면처럼 해 봐요</span>
+              </span>
+              <span style={{ ...primaryButton, padding: "10px 14px", fontSize: 14 }}>▶ 미리 해 보기</span>
+            </button>
             {fixedNote && passedVersion === version.version && (
               <p style={{ padding: 12, borderRadius: 12, background: "rgba(120,220,120,.12)", color: "#9be59b", fontSize: 13 }}>
                 🔧 AI가 문제를 고쳤고 자동 테스트를 통과했어요. 위에서 미리 해 보고 확정해 주세요.
@@ -329,6 +376,24 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
             </p>
           </div>
         )}
+
+        {popup &&
+          (() => {
+            const pv = game.versions.find((x) => x.version === popup.version);
+            if (!pv) return null;
+            return (
+              <PreviewPopup
+                html={pv.html}
+                title={pv.title}
+                emoji={pv.emoji}
+                version={pv.version}
+                onClose={() => setPopup(null)}
+                onConfirm={popup.confirm ? () => doPublish(pv) : undefined}
+                confirmLabel={`✅ v${pv.version}으로 확정`}
+                confirmDisabled={busy}
+              />
+            );
+          })()}
 
         {lowBananas && (
           <div

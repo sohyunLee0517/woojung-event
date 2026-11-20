@@ -17,7 +17,7 @@ const PLAYERS: KitPlayer[] = [
 
 type Phase = "idle" | "countdown" | "playing" | "done";
 
-export default function PreviewPlayground({ html, title, emoji }: { html: string; title: string; emoji: string }) {
+export default function PreviewPlayground({ html, title, emoji, autoStart = false }: { html: string; title: string; emoji: string; autoStart?: boolean }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [run, setRun] = useState(0);
   const [seed, setSeed] = useState(1);
@@ -42,6 +42,10 @@ export default function PreviewPlayground({ html, title, emoji }: { html: string
 
   // 버전이 바뀌면 처음으로
   useEffect(() => setPhase("idle"), [html]);
+  // 팝업으로 열면 바로 3·2·1
+  useEffect(() => {
+    if (autoStart) start();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (phase !== "countdown") return;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PreviewPlayground from "@/components/game-maker/PreviewPlayground";
+import PreviewPopup from "@/components/game-maker/PreviewPopup";
 import { runSmokeTest } from "@/components/game-maker/smoke-runner";
 
 // 문제 있는 예제: 누르면 오류가 나고, 끝나지도 않는다
@@ -46,7 +47,8 @@ const SAMPLE = `
 
 export default function AiGamePreview() {
   const [result, setResult] = useState("");
-  const [html, setHtml] = useState(SAMPLE);
+  const [html] = useState(SAMPLE);
+  const [popup, setPopup] = useState(false);
   const test = async (label: string, html: string) => {
     setResult(`${label}: 테스트 중…`);
     const t = Date.now();
@@ -61,9 +63,11 @@ export default function AiGamePreview() {
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => test("좋은 예제", SAMPLE)}>자동 테스트: 좋은 예제</button>
         <button onClick={() => test("문제 예제", BROKEN)}>자동 테스트: 문제 예제</button>
+        <button onClick={() => setPopup(true)}>팝업으로 미리보기</button>
 
       </div>
       <p id="smoke-result" style={{ fontSize: 13 }}>{result}</p>
+      {popup && <PreviewPopup html={html} title="바나나 연타" emoji="🍌" version={1} onClose={() => setPopup(false)} onConfirm={() => setPopup(false)} />}
     </>
   );
   if (scroll) {
