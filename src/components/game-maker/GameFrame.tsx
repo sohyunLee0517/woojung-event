@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { buildGameDocument, parseKitMessage, type KitBoot, type KitEvent, type KitMessage } from "@/lib/game-maker/kit";
+import { GAME_FRAME_SRC, loadGameDocument } from "./frame-shell";
 
 // AI가 만든 게임을 격리된 iframe 에 띄우고, 게임 키트 메시지를 이어 준다.
 //   events: 지금까지 받은 메시지 (뒤에 계속 붙는다). 새로 붙은 것만 게임에 넘긴다.
@@ -28,6 +29,12 @@ export default function GameFrame({
 
   // 처음 그릴 때의 게임·참여자로 고정 (폴링으로 값이 바뀌어도 게임이 다시 시작되지 않게)
   const doc = useMemo(() => buildGameDocument(html, boot), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 껍데기(/game-frame.html)가 준비되면 게임 문서를 넣는다
+  useEffect(() => {
+    if (!ref.current) return;
+    return loadGameDocument(ref.current, doc);
+  }, [doc]);
 
   useEffect(() => {
     const onMsg = (ev: MessageEvent) => {
@@ -56,7 +63,7 @@ export default function GameFrame({
       ref={ref}
       title="게임"
       sandbox="allow-scripts"
-      srcDoc={doc}
+      src={GAME_FRAME_SRC}
       style={{ border: 0, width: "100%", height: "100%", display: "block", background: "#0d0d14", borderRadius: 16, ...style }}
     />
   );

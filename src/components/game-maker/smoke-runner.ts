@@ -3,6 +3,7 @@
 // 확정 전 자동 테스트 실행기 (브라우저 전용).
 // 화면 밖에 격리 iframe 두 개(나·연습 친구)를 띄우고 시간을 빨리 감아 끝까지 돌린 뒤 판정한다.
 import { buildGameDocument, parseKitMessage, type KitPlayer } from "@/lib/game-maker/kit";
+import { GAME_FRAME_SRC, loadGameDocument } from "./frame-shell";
 import { evaluateSmoke, SMOKE_REAL_LIMIT_MS, SMOKE_STALL_MS, type SmokeObservation, type SmokeResult } from "@/lib/game-maker/smoke";
 
 const PLAYERS: KitPlayer[] = [
@@ -32,6 +33,7 @@ export function runSmokeTest(html: string): Promise<SmokeResult> {
       clearTimeout(hardStop);
       const now = Date.now();
       const list = [...obs.values()].map((o) => ({ ...o, stalled: o.stalled || (!o.ended && !o.scored && now - o.lastTickAt > SMOKE_STALL_MS) }));
+      stops.forEach((s) => s());
       box.remove();
       resolve(evaluateSmoke(list.map(({ lastTickAt: _t, ...o }) => o)));
     };
@@ -81,6 +83,7 @@ export function runSmokeTest(html: string): Promise<SmokeResult> {
     window.addEventListener("message", onMessage);
 
     const idOf = new Map<Window, string>();
+    const stops: (() => void)[] = [];
     // 오류 줄 번호를 AI가 쓴 게임 코드 기준으로 (앞에 넣은 키트·테스트 스크립트 줄 수만큼 뺀다)
     let lineOffset = 0;
     for (const p of PLAYERS) {
@@ -89,7 +92,8 @@ export function runSmokeTest(html: string): Promise<SmokeResult> {
       f.style.cssText = "border:0;width:390px;height:720px;display:block";
       const doc = buildGameDocument(html, { mode: "preview", me: p.id, players: PLAYERS, seed }, { test: true });
       lineOffset = doc.slice(0, doc.indexOf("</head><body>") + "</head><body>".length).split("\n").length - 1;
-      f.srcdoc = doc;
+      stops.push(loadGameDocument(f, doc));
+      f.src = GAME_FRAME_SRC;
       box.appendChild(f);
       frames.push(f);
       const w = f.contentWindow;

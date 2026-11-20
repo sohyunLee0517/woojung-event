@@ -46,22 +46,44 @@ const SAMPLE = `
 
 export default function AiGamePreview() {
   const [result, setResult] = useState("");
+  const [html, setHtml] = useState(SAMPLE);
   const test = async (label: string, html: string) => {
     setResult(`${label}: 테스트 중…`);
     const t = Date.now();
     const r = await runSmokeTest(html);
     setResult(`${label}: ${r.ok ? "✅ 통과" : "❌ 실패"} (${((Date.now() - t) / 1000).toFixed(1)}초)${r.problems.length ? " · " + r.problems.join(" / ") : ""}`);
   };
-  return (
-    <main style={{ position: "absolute", inset: 0, background: "#0a0a0a", color: "#fff", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+  // ?scroll=1 이면 만들기 화면과 같은 배치(스크롤 페이지 안 62vh 상자)
+  const scroll = typeof window !== "undefined" && location.search.includes("scroll");
+  const controls = (
+    <>
       <h1 style={{ fontSize: 18, fontWeight: 800 }}>🤖 AI 게임 미리보기 (예제)</h1>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => test("좋은 예제", SAMPLE)}>자동 테스트: 좋은 예제</button>
         <button onClick={() => test("문제 예제", BROKEN)}>자동 테스트: 문제 예제</button>
+
       </div>
       <p id="smoke-result" style={{ fontSize: 13 }}>{result}</p>
+    </>
+  );
+  if (scroll) {
+    return (
+      <main style={{ position: "absolute", inset: 0, overflowY: "auto", color: "#fff", background: "#0a0a0a" }}>
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 48px", display: "flex", flexDirection: "column", gap: 14 }}>
+          {controls}
+          <div style={{ height: "62vh", minHeight: 380 }}>
+            <PreviewPlayground html={html} title="바나나 연타" emoji="🍌" />
+          </div>
+          <div style={{ height: 600, background: "#222", borderRadius: 16 }}>아래 내용 (스크롤용)</div>
+        </div>
+      </main>
+    );
+  }
+  return (
+    <main style={{ position: "absolute", inset: 0, background: "#0a0a0a", color: "#fff", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+      {controls}
       <div style={{ flex: 1, minHeight: 0, maxWidth: 480, width: "100%", margin: "0 auto" }}>
-        <PreviewPlayground html={SAMPLE} title="바나나 연타" emoji="🍌" />
+        <PreviewPlayground html={html} title="바나나 연타" emoji="🍌" />
       </div>
     </main>
   );

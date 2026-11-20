@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>html,body{margin:0;height:100%;background:#0d0d14}</style>
+<script>
+// 우끼끼 AI 게임 칸 껍데기. 부모 화면이 보낸 게임 문서(CSP·키트 포함)를 이 칸에 그대로 써 넣는다.
+// iOS 앱 웹뷰는 about:srcdoc 주소를 막아서, srcdoc 대신 이 https 페이지를 sandbox iframe 으로 연다.
+(function () {
+  if (window.parent === window) return;
+  var got = false;
+  window.addEventListener("message", function (e) {
+    if (got || e.source !== window.parent || !e.data || typeof e.data.__ukikiDoc !== "string") return;
+    got = true;
+    clearInterval(ping);
+    var doc = e.data.__ukikiDoc;
+    document.open();
+    document.write(doc);
+    document.close();
+  });
+  // 부모가 듣기 전에 보냈을 수도 있어서 받을 때까지 몇 번 더 알린다
+  function hello() { window.parent.postMessage({ __ukikiShell: "ready" }, "*"); }
+  var ping = setInterval(hello, 250);
+  hello();
+})();
+</script>
+</head>
+<body></body>
+</html>
