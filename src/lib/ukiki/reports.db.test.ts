@@ -38,4 +38,11 @@ describe.skipIf(!hasDb)("신고하기 (실제 DB)", () => {
       ["harassment", "첫 신고", null],
     ]);
   });
+
+  it("AI로 만든 게임도 신고할 수 있고, 어떤 게임인지 남는다", async () => {
+    expect(REPORT_CATEGORIES.map((c) => c.value)).toContain("ai_game");
+    expect(await createReport(ME, { category: "ai_game", body: "이상한 게임", roomCode: "abc123", aiGameId: 77 })).toEqual({ ok: true });
+    const r = (await listReports()).find((x) => x.reporterKakaoId === ME && x.category === "ai_game");
+    expect(r?.aiGameId).toBe(77);
+  });
 });

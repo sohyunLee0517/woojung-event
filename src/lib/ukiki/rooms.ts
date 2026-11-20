@@ -45,6 +45,9 @@ export type RoomGame = {
   hostName: string | null;
   refCode: string | null;
   createdAt: string;
+  /** 우리가 만든 게임(ai) 이면 그 게임 이름·이모지 */
+  aiTitle?: string | null;
+  aiEmoji?: string | null;
 };
 
 export type RoomDetail = {
@@ -198,8 +201,11 @@ export async function getRoomDetail(code: string, me: string): Promise<RoomDetai
     order by m.joined_at
   `) as { kakao_id: string; nickname: string | null; profile_image: string | null; online: boolean }[];
   const games = (await sql`
-    select g.id, g.game_type, g.host_kakao_id, p.nickname as host_name, g.ref_code, g.created_at
+    select g.id, g.game_type, g.host_kakao_id, p.nickname as host_name, g.ref_code, g.created_at,
+           ag.title as ai_title, ag.emoji as ai_emoji
     from uk_room_games g join players p on p.kakao_id = g.host_kakao_id
+      left join uk_ai_rounds ar on ar.game_id = g.id
+      left join uk_ai_game_versions ag on ag.ai_game_id = ar.ai_game_id and ag.version = ar.version
     where g.room_code = ${code} and g.status = 'active'
       and not (g.game_type = 'gacha' and not exists (
         select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null))
@@ -211,6 +217,8 @@ export async function getRoomDetail(code: string, me: string): Promise<RoomDetai
     host_name: string | null;
     ref_code: string | null;
     created_at: string;
+    ai_title: string | null;
+    ai_emoji: string | null;
   }[];
   return {
     code: room.code,
@@ -232,6 +240,8 @@ export async function getRoomDetail(code: string, me: string): Promise<RoomDetai
         hostName: g.host_name,
         refCode: g.ref_code,
         createdAt: new Date(g.created_at).toISOString(),
+        aiTitle: g.ai_title,
+        aiEmoji: g.ai_emoji,
       })),
     enabledGames: switches,
   };
@@ -401,7 +411,7 @@ export async function listPastGames(code: string, me: string, offset = 0) {
       where g.room_code = ${code}
         and (
           (g.game_type = 'fanfare' and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
-          or (g.game_type in ('pirate', 'snack', 'pinball') and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
+          or (g.game_type in ('pirate', 'snack', 'pinball', 'ai') and g.status = 'ended' and coalesce(g.outcome, 'completed') <> 'cancelled')
           or (g.game_type = 'gacha'
               and exists (select 1 from capsules c where c.game_code = g.ref_code)
               and not exists (select 1 from capsules c where c.game_code = g.ref_code and c.drawn_by is null))
@@ -444,7 +454,9 @@ export async function listPastGames(code: string, me: string, offset = 0) {
     minutes: number;
   }[];
 
-  const miniIds = page.items.filter((r) => r.game_type === "pirate" || r.game_type === "snack" || r.game_type === "pinball").map((r) => Number(r.id));
+  const miniIds = page.items
+    .filter((r) => r.game_type === "pirate" || r.game_type === "snack" || r.game_type === "pinball" || r.game_type === "ai")
+    .map((r) => Number(r.id));
   const pirateGames = (await sql`select game_id, status from uk_pirate_games where game_id = any(${miniIds})`) as { game_id: number; status: string }[];
   const pirateRows = (await sql`
     select pp.game_id, pp.kakao_id, p.nickname, p.profile_image,
@@ -474,6 +486,18 @@ export async function listPastGames(code: string, me: string, offset = 0) {
     where bp.game_id = any(${miniIds})
   `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null }[];
 
+  const aiRounds = (await sql`
+    select r.game_id, r.winners, r.team_success, v.title, v.emoji
+    from uk_ai_rounds r join uk_ai_game_versions v on v.ai_game_id = r.ai_game_id and v.version = r.version
+    where r.game_id = any(${miniIds})
+  `) as { game_id: number; winners: string[] | null; team_success: boolean | null; title: string; emoji: string }[];
+  const aiRows = (await sql`
+    select rp.game_id, rp.kakao_id, p.nickname, p.profile_image, rp.score
+    from uk_ai_round_players rp join players p on p.kakao_id = rp.kakao_id
+      join uk_ai_rounds r on r.game_id = rp.game_id and rp.kakao_id = any(r.members)
+    where rp.game_id = any(${miniIds}) order by rp.joined_at, rp.kakao_id
+  `) as { game_id: number; kakao_id: string; nickname: string | null; profile_image: string | null; score: number | null }[];
+
   const miniOf = (r: { id: number; game_type: GameType }): { parts: PastGame["participants"]; result: PastGame["miniResult"] } | null => {
     const id = Number(r.id);
     if (r.game_type === "pirate") {
@@ -497,6 +521,24 @@ export async function listPastGames(code: string, me: string, offset = 0) {
         result: {
           summary: `👑 ${rows[0]?.nickname ?? "친구"} 오늘의 주인공`,
           rows: rows.map((x, i) => ({ kakaoId: x.kakao_id, nickname: x.nickname, value: i === 0 ? "👑 1등" : `${i + 1}등` })),
+        },
+      };
+    }
+    if (r.game_type === "ai") {
+      const g = aiRounds.find((x) => Number(x.game_id) === id);
+      const rows = aiRows.filter((x) => Number(x.game_id) === id);
+      const winners = g?.winners ?? [];
+      const names = rows.filter((x) => winners.includes(x.kakao_id)).map((x) => x.nickname ?? "친구");
+      const outcome = g?.team_success ? "🎉 팀 성공" : names.length ? `👑 ${names.join(", ")}` : "결과 없음";
+      return {
+        parts: rows.map((x) => ({ kakaoId: x.kakao_id, nickname: x.nickname, image: x.profile_image })),
+        result: {
+          summary: `${g?.emoji ?? "🎮"} ${g?.title ?? "만든 게임"} · ${outcome}`,
+          rows: rows.map((x) => ({
+            kakaoId: x.kakao_id,
+            nickname: x.nickname,
+            value: g?.team_success ? "🎉 성공" : winners.includes(x.kakao_id) ? "👑 1등" : x.score !== null ? `${Number(x.score)}점` : "참여",
+          })),
         },
       };
     }

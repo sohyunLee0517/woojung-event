@@ -9,6 +9,7 @@ import BackButton from "./BackButton";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { enabledGames, GAME_TYPES, setGameEnabled } from "@/lib/ukiki/features";
 import { listReports, REPORT_CATEGORIES } from "@/lib/ukiki/reports";
+import { hideAiGame } from "@/lib/game-maker/store";
 import { GAME_META } from "@/components/ukiki/styles";
 import Toggle from "@/components/ukiki/Toggle";
 
@@ -137,6 +138,29 @@ export default async function AdminPage() {
               <p style={{ opacity: 0.55 }}>
                 {r.reporterName ?? r.reporterKakaoId} · {clock(r.createdAt)}
               </p>
+              {r.aiGameId && (
+                <form
+                  action={async () => {
+                    "use server";
+                    const s = await auth();
+                    if (adminAccess(s?.user?.id, adminIds()) !== "ok") return;
+                    await hideAiGame(r.aiGameId as number);
+                    revalidatePath("/birthday-gacha/admin");
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <span style={{ flex: 1 }}>
+                    🤖 AI 게임 #{r.aiGameId} {r.aiGameTitle ? `'${r.aiGameTitle}'` : ""}
+                  </span>
+                  {r.aiGameHidden ? (
+                    <span style={{ opacity: 0.6 }}>숨김 처리됨</span>
+                  ) : (
+                    <button type="submit" style={{ ...button, padding: "6px 10px", fontSize: 12 }}>
+                      이 게임 숨기기
+                    </button>
+                  )}
+                </form>
+              )}
             </div>
           ))}
         </section>

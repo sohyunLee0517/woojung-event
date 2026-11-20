@@ -328,7 +328,7 @@ where g.started_at is null and exists (select 1 from capsules c where c.game_cod
 -- ===== 해적 무찌르기 / 과자 나눠먹기 =====
 alter table uk_room_games drop constraint if exists uk_room_games_game_type_check
 ;
-alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack'))
+alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack', 'pinball', 'ai'))
 ;
 create unique index if not exists uk_one_active_pirate
   on uk_room_games (room_code) where game_type = 'pirate' and status = 'active'
@@ -389,7 +389,7 @@ create table if not exists uk_snack_players (
 -- ===== 랜덤 핀볼 =====
 alter table uk_room_games drop constraint if exists uk_room_games_game_type_check
 ;
-alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack', 'pinball'))
+alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack', 'pinball', 'ai'))
 ;
 create unique index if not exists uk_one_active_pinball
   on uk_room_games (room_code) where game_type = 'pinball' and status = 'active'
@@ -411,3 +411,133 @@ create table if not exists uk_pinball_players (
   joined_at timestamptz not null default clock_timestamp(),
   primary key (game_id, kakao_id)
 );
+
+-- ===== 바나나 (게임 보상) =====
+-- 지갑: 잔액 한 줄. 쓸 때 "잔액 >= n 인 줄만 깎기"로 동시에 눌러도 마이너스가 안 된다.
+create table if not exists uk_banana_wallets (
+  kakao_id   text        primary key,
+  balance    int         not null default 0 check (balance >= 0),
+  updated_at timestamptz not null default now()
+);
+
+-- 장부: 바나나가 들어오고 나간 기록. 게임 보상(play/win)과 환불(refund)은 같은 대상에 한 번만.
+--   play/win 의 ref_id = uk_room_games.id, refund 의 ref_id = 환불한 prompt 줄의 id
+create table if not exists uk_banana_ledger (
+  id         bigserial   primary key,
+  kakao_id   text        not null,
+  delta      int         not null,
+  reason     text        not null check (reason in ('play', 'win', 'prompt', 'refund', 'grant')),
+  ref_id     bigint,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists uk_banana_once
+  on uk_banana_ledger (kakao_id, reason, ref_id) where reason in ('play', 'win', 'refund')
+;
+create index if not exists uk_banana_by_user on uk_banana_ledger (kakao_id, created_at desc)
+;
+
+-- ===== AI 게임 만들기 =====
+-- 방 안에서 만든 게임. draft(만드는 중) → published(방 사람들이 할 수 있음) / hidden(신고로 숨김)
+create table if not exists uk_ai_games (
+  id                bigserial   primary key,
+  room_code         text        not null references uk_rooms(code) on delete cascade,
+  creator_kakao_id  text        not null,
+  title             text        not null default '이름 없는 게임',
+  emoji             text        not null default '🎮',
+  status            text        not null default 'draft' check (status in ('draft', 'published', 'hidden')),
+  published_version int,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+create index if not exists uk_ai_games_room on uk_ai_games (room_code, status)
+;
+
+-- 프롬프트 한 번 = 버전 하나 (게임 코드 전체를 저장한다)
+create table if not exists uk_ai_game_versions (
+  ai_game_id bigint      not null references uk_ai_games(id) on delete cascade,
+  version    int         not null,
+  prompt     text        not null,
+  html       text        not null,
+  title      text        not null,
+  emoji      text        not null,
+  rules      text,
+  created_at timestamptz not null default now(),
+  primary key (ai_game_id, version)
+);
+
+-- 방에서 AI 게임 한 판 (다른 게임과 같은 준비완료 → 3·2·1 → 결과 흐름)
+alter table uk_room_games drop constraint if exists uk_room_games_game_type_check
+;
+alter table uk_room_games add constraint uk_room_games_game_type_check check (game_type in ('fanfare', 'gacha', 'pirate', 'snack', 'pinball', 'ai'))
+;
+create unique index if not exists uk_one_active_ai
+  on uk_room_games (room_code) where game_type = 'ai' and status = 'active'
+;
+
+create table if not exists uk_ai_rounds (
+  game_id      bigint      primary key references uk_room_games(id) on delete cascade,
+  ai_game_id   bigint      not null references uk_ai_games(id) on delete cascade,
+  version      int         not null,
+  started_at   timestamptz,
+  seed         bigint,
+  members      text[],
+  ended_at     timestamptz,
+  winners      text[],
+  team_success boolean
+);
+
+create table if not exists uk_ai_round_players (
+  game_id   bigint      not null references uk_room_games(id) on delete cascade,
+  kakao_id  text        not null,
+  ready     boolean     not null default false,
+  joined_at timestamptz not null default clock_timestamp(),
+  score     double precision,
+  primary key (game_id, kakao_id)
+);
+
+-- 게임 안에서 주고받은 메시지 (모두 같은 순서로 받는다)
+create table if not exists uk_ai_round_events (
+  id       bigserial   primary key,
+  game_id  bigint      not null references uk_room_games(id) on delete cascade,
+  kakao_id text        not null,
+  data     jsonb       not null,
+  at       timestamptz not null default now()
+);
+create index if not exists uk_ai_round_events_game on uk_ai_round_events (game_id, id)
+;
+
+-- 신고: 어떤 AI 게임인지
+alter table uk_reports add column if not exists ai_game_id bigint
+;
+
+-- AI 가 만드는 중인 요청 (만드는 데 1~3분 걸려서 뒤에서 돌린다)
+alter table uk_ai_games add column if not exists pending_prompt text
+;
+alter table uk_ai_games add column if not exists pending_ledger_id bigint
+;
+alter table uk_ai_games add column if not exists pending_since timestamptz
+;
+alter table uk_ai_games add column if not exists last_error text
+;
+
+-- AI 게임: 만든 사람이 지우면 deleted (지난 게임 기록은 남긴다). 임시저장(draft)은 방마다 한 사람에 1개.
+alter table uk_ai_games drop constraint if exists uk_ai_games_status_check
+;
+alter table uk_ai_games add constraint uk_ai_games_status_check check (status in ('draft', 'published', 'hidden', 'deleted'))
+;
+create unique index if not exists uk_ai_one_draft
+  on uk_ai_games (room_code, creator_kakao_id) where status = 'draft'
+;
+
+-- AI 가 내용 기준(13세) 때문에 만들지 않고 제안한 대안 게임 (1~2개)
+alter table uk_ai_games add column if not exists last_suggestions text[]
+;
+
+-- 바나나 소급 정산: 기능 전에 끝난 게임도 같은 규칙으로 한 번만 (사유 retro_play / retro_win)
+alter table uk_banana_ledger drop constraint if exists uk_banana_ledger_reason_check
+;
+alter table uk_banana_ledger add constraint uk_banana_ledger_reason_check check (reason in ('play', 'win', 'prompt', 'refund', 'grant', 'retro_play', 'retro_win'))
+;
+create unique index if not exists uk_banana_retro_once
+  on uk_banana_ledger (kakao_id, reason, ref_id) where reason in ('retro_play', 'retro_win')
+;

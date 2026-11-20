@@ -15,9 +15,12 @@
     "seed:clean": "SAMPLE_MODE=clean node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/ukiki/sample-rooms.seed.test.ts",
     "test:rules": "firebase emulators:exec --only database --project demo-ukiki \"vitest run src/lib/fanfare/rules.emulator.test.ts\"",
     "rules:deploy": "node --env-file=.env.local scripts/deploy-rules.mjs",
-    "push:test": "node --env-file=.env.local node_modules/vite-node/vite-node.mjs --config vitest.config.ts scripts/push-test.ts"
+    "push:test": "node --env-file=.env.local node_modules/vite-node/vite-node.mjs --config vitest.config.ts scripts/push-test.ts",
+    "bananas:retro-plan": "node --env-file=.env.local node_modules/vite-node/vite-node.mjs --config vitest.config.ts scripts/retro-plan.ts",
+    "bananas:retro-apply": "node --env-file=.env.local node_modules/vite-node/vite-node.mjs --config vitest.config.ts scripts/retro-apply.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
     "@neondatabase/serverless": "^1.2.1",
     "canvas-confetti": "^1.9.4",
     "firebase": "^12.11.0",

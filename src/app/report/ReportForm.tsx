@@ -17,11 +17,14 @@ const field: React.CSSProperties = {
 export default function ReportForm({
   categories,
   roomCode,
+  aiGameId = null,
 }: {
   categories: { value: string; label: string }[];
   roomCode: string | null;
+  /** AI로 만든 게임에서 신고하기를 누른 경우 */
+  aiGameId?: number | null;
 }) {
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(aiGameId ? "ai_game" : "");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -35,7 +38,7 @@ export default function ReportForm({
     const res = await fetch("/api/ukiki/reports", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ category, body, roomCode }),
+      body: JSON.stringify({ category, body, roomCode, aiGameId }),
     }).catch(() => null);
     const data = res ? ((await res.json().catch(() => null)) as { ok: boolean; error?: string } | null) : null;
     setBusy(false);
@@ -58,6 +61,7 @@ export default function ReportForm({
       <p style={{ fontSize: 13, opacity: 0.7, lineHeight: 1.6 }}>
         신고 내용은 관리자만 볼 수 있어요. 아동을 위험하게 하는 내용은 확인 즉시 조치하고 관련 기관에 알려요.
         {roomCode && ` (방 ${roomCode})`}
+        {aiGameId && ` · 신고할 게임 #${aiGameId}`}
       </p>
       <select value={category} onChange={(e) => setCategory(e.target.value)} required style={field} aria-label="신고 종류">
         <option value="" disabled>

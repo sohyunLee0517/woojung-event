@@ -2,7 +2,7 @@
 import { getSql } from "@/lib/db";
 import type { GameType } from "@/lib/ukiki/rules";
 
-export const GAME_TYPES: GameType[] = ["fanfare", "gacha", "pirate", "snack", "pinball"];
+export const GAME_TYPES: GameType[] = ["fanfare", "gacha", "pirate", "snack", "pinball", "ai"];
 const gameKey = (t: GameType) => `game:${t}`;
 
 export async function getFlags(keys: string[]): Promise<Record<string, boolean>> {

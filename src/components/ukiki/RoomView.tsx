@@ -181,6 +181,12 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
     load();
   };
 
+  // 우리가 만든 게임(AI): 게임 고르기·만들기는 만들기 화면에서 한다
+  const aiGamePath = (id: number) => `/r/${room.code}/ai/${id}`;
+  const openMaker = async () => {
+    router.push(`/r/${room.code}/maker`);
+  };
+
   const openGacha = async () => {
     if (busy) return;
     setBusy("gacha");
@@ -224,6 +230,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
   const pirates = room.games.filter((g) => g.type === "pirate");
   const snacks = room.games.filter((g) => g.type === "snack");
   const pinballs = room.games.filter((g) => g.type === "pinball");
+  const aiRounds = room.games.filter((g) => g.type === "ai");
   const onlineCount = room.members.filter((m) => m.online).length;
 
   return (
@@ -456,6 +463,16 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
               <span style={ghostButton}>참여</span>
             </Link>
           ))}
+          {aiRounds.map((g) => (
+            <Link key={g.id} href={aiGamePath(g.id)} style={gameCard}>
+              <span style={{ fontSize: 26 }}>{g.aiEmoji ?? GAME_META.ai.emoji}</span>
+              <span style={{ flex: 1 }}>
+                <b>{g.aiTitle ?? GAME_META.ai.label}</b>
+                <span style={{ display: "block", fontSize: 12, opacity: 0.7 }}>{g.hostName ?? "친구"}님이 열었어요 · 🤖 우리가 만든 게임</span>
+              </span>
+              <span style={ghostButton}>참여</span>
+            </Link>
+          ))}
           {snacks.map((g) => (
             <Link key={g.id} href={snackGamePath(g.id)} style={gameCard}>
               <span style={{ fontSize: 26 }}>{GAME_META.snack.emoji}</span>
@@ -497,22 +514,28 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
             pointerEvents: "none",
           }}
         >
-          <button
-            onClick={() => setPicker(true)}
-            disabled={!!busy}
-            style={{
-              ...primaryButton,
-              display: "block",
-              width: "100%",
-              maxWidth: 448,
-              margin: "0 auto",
-              boxShadow: "0 6px 20px rgba(0,0,0,.45)",
-              opacity: busy ? 0.6 : 1,
-              pointerEvents: "auto",
-            }}
-          >
-            {busy ? "여는 중…" : "＋ 새 게임 만들기"}
-          </button>
+          <div style={{ display: "flex", gap: 8, width: "100%", maxWidth: 448, margin: "0 auto", pointerEvents: "auto" }}>
+            {room.enabledGames?.ai !== false && (
+              <Link
+                href={`/r/${room.code}/maker`}
+                style={{ ...ghostButton, flex: "0 0 auto", display: "flex", alignItems: "center", textDecoration: "none", background: "#1c1c1c", boxShadow: "0 6px 20px rgba(0,0,0,.45)" }}
+              >
+                🤖 AI 게임 만들기
+              </Link>
+            )}
+            <button
+              onClick={() => setPicker(true)}
+              disabled={!!busy}
+              style={{
+                ...primaryButton,
+                flex: 1,
+                boxShadow: "0 6px 20px rgba(0,0,0,.45)",
+                opacity: busy ? 0.6 : 1,
+              }}
+            >
+              {busy ? "여는 중…" : "＋ 새 게임 만들기"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -595,6 +618,7 @@ export default function RoomView({ initial, me }: { initial: RoomDetail; me: str
                 ["pirate", openPirate],
                 ["snack", openSnack],
                 ["pinball", openPinball],
+                ["ai", openMaker],
               ] as const
             )
               .filter(([type]) => room.enabledGames?.[type] !== false)

@@ -5,5 +5,5 @@ import { vi } from "vitest";
 
 vi.mock("@/lib/ukiki/features", async (orig) => ({
   ...(await orig<typeof import("@/lib/ukiki/features")>()),
-  enabledGames: vi.fn(async () => ({ fanfare: true, gacha: true, pirate: true, snack: true, pinball: true })),
+  enabledGames: vi.fn(async () => ({ fanfare: true, gacha: true, pirate: true, snack: true, pinball: true, ai: true })),
 }));

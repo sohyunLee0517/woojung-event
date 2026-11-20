@@ -94,4 +94,5 @@ export const GAME_META = {
   pirate: { emoji: "🏴‍☠️", label: "해적 무찌르기", desc: "돌아가며 칼을 꽂아요. 해적이 튀어나오면 실패!" },
   snack: { emoji: "🍪", label: "과자 나눠먹기", desc: "각자 몰래 잘라 가요. 합이 100을 넘으면 실패!" },
   pinball: { emoji: "🎱", label: "랜덤 핀볼", desc: "구슬을 굴려 1등이 오늘의 주인공!" },
+  ai: { emoji: "🤖", label: "우리가 만든 게임", desc: "방 친구가 AI로 만든 게임을 같이 해요" },
 } as const;
