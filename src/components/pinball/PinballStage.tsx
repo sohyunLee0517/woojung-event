@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { allDone, BALL_R, BAR_T, createSim, DT, FINISH_Y, H, obstacleSeg, step, W, type Sim } from "@/lib/pinball/logic";
+import { advancePlayback, catchUpSeconds } from "@/lib/pinball/playback";
 
 /** 전체 재생 속도 (화면만 느리게, 결과는 그대로) */
 const PLAYBACK = 0.7;
@@ -16,11 +17,14 @@ export default function PinballStage({
   players,
   meId,
   seed,
+  startedAtMs = null,
   onDone,
 }: {
   players: PinballPlayer[];
   meId: string;
   seed: number;
+  /** 게임이 시작한 시각 (이 기기 시계 기준). 화면이 늦게 뜬 폰은 그만큼 앞에서 시작해 다른 폰과 맞춘다 */
+  startedAtMs?: number | null;
   onDone: (order: string[]) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,6 +39,9 @@ export default function PinballStage({
       players.map((p) => p.id),
       seed,
     );
+
+    // 늦게 뜬 화면은 시작 시각부터 흐른 만큼 먼저 굴려 둔다
+    for (let n = Math.floor(catchUpSeconds(startedAtMs, Date.now(), PLAYBACK) / DT); n > 0 && !allDone(sim); n--) step(sim);
 
     const cam = { x: W / 2, y: 0, zoom: 1, speed: 1 };
     let acc = 0;
@@ -55,7 +62,8 @@ export default function PinballStage({
     const pip = { x: W / 2, y: FINISH_Y, zoom: 3.2, alpha: 0 };
 
     function frame(now: number) {
-      const real = Math.min(0.05, (now - last) / 1000);
+      const elapsed = (now - last) / 1000; // 실제로 흐른 시간 (물리는 이만큼 진행)
+      const real = Math.min(0.05, elapsed); // 카메라 움직임용 (튀지 않게)
       last = now;
 
       const running = sim.balls.filter((b) => !b.done);
@@ -93,10 +101,12 @@ export default function PinballStage({
       pip.alpha += ((showPip ? 1 : 0) - pip.alpha) * Math.min(1, k * 1.5);
 
       // ── 물리 진행 ──
-      acc += real * cam.speed * PLAYBACK;
-      while (acc >= DT && !allDone(sim)) {
+      // 프레임 수가 아니라 흐른 시간만큼 간다 → 주사율(120·60Hz)이나 폰 성능과 상관없이 같은 속도
+      const adv = advancePlayback(acc, elapsed, cam.speed * PLAYBACK);
+      acc = adv.acc;
+      for (let n = adv.steps; n > 0 && !allDone(sim); n--) {
         step(sim);
-        acc -= DT;
+        sampleTrails();
       }
       if (allDone(sim) && !endedAt) endedAt = now;
       if (endedAt && now - endedAt > 700) {
@@ -104,7 +114,6 @@ export default function PinballStage({
         return;
       }
 
-      updateTrails();
       render(winner?.id ?? null, climax && starIsMe, holding);
       raf = requestAnimationFrame(frame);
     }
@@ -117,7 +126,9 @@ export default function PinballStage({
       ctx.shadowBlur = blur;
     }
 
-    function updateTrails() {
+    // 꼬리는 프레임마다가 아니라 물리 2걸음(1/60초)마다 한 점 → 주사율이 달라도 길이가 같다
+    function sampleTrails() {
+      if (sim.tick % 2 !== 0) return;
       for (const b of sim.balls) {
         const tr = trails.get(b.id) ?? [];
         if (!b.done) {

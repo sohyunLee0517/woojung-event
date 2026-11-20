@@ -93,7 +93,7 @@ export default function PinballGame({ roomCode, gameId, me }: { roomCode: string
               <PinballResult players={balls} order={state.order} backHref={`/r/${roomCode}`} />
             ) : (
               <>
-                <PinballStage players={balls} meId={me} seed={state.seed} onDone={() => setFinished(true)} />
+                <PinballStage players={balls} meId={me} seed={state.seed} startedAtMs={startedMs === null ? null : startedMs - offset} onDone={() => setFinished(true)} />
                 {showGoBurst(startedMs, serverNow) && <GoBurst label="출발! 🎱" />}
               </>
             )}
