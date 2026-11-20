@@ -34,7 +34,7 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
   const [message, setMessage] = useState("");
   const [missing, setMissing] = useState(false);
   const [lowBananas, setLowBananas] = useState(false);
-  const [published, setPublished] = useState<{ title: string; emoji: string } | null>(null);
+  const [published, setPublished] = useState<{ title: string; emoji: string; fixedVersion: number | null } | null>(null);
   // 확정할 때: 자동 테스트 → (실패하면) AI 자동 수정 → 다시 테스트
   const [stage, setStage] = useState<string | null>(null);
   const [passedVersion, setPassedVersion] = useState<number | null>(null);
@@ -132,12 +132,12 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
     return data.game;
   };
 
-  const doPublish = async (v: { version: number; title: string; emoji: string }) => {
+  const doPublish = async (v: { version: number; title: string; emoji: string }, fixed = false) => {
     const r = (await post({ action: "publish", version: v.version })) as { ok: boolean; reason?: string } | null;
     if (r?.ok) {
       clearEditorMemory(localStorage, aiId);
       setPopup(null);
-      setPublished({ title: v.title, emoji: v.emoji });
+      setPublished({ title: v.title, emoji: v.emoji, fixedVersion: fixed ? v.version : null });
     }
     else if (r?.reason === "full") setMessage("방 게임이 10개로 가득 찼어요. 내가 만든 게임을 지우면 확정할 수 있어요.");
     else if (r?.reason === "untested") setMessage("자동 테스트를 통과한 버전만 확정할 수 있어요.");
@@ -165,14 +165,10 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
       const r = await runSmokeTest(latest.html);
       await post({ action: "test_result", version: latest.version, ok: r.ok, problems: r.problems });
       if (r.ok) {
+        // 통과하면 바로 확정 (AI가 고친 버전이어도)
+        setStage(fixed ? `✅ 고친 v${latest.version}이 테스트를 통과했어요. 확정하는 중…` : "✅ 테스트 통과! 확정하는 중…");
+        await doPublish(latest, fixed);
         setStage(null);
-        if (!fixed) return doPublish(latest);
-        // 고친 버전은 확정 전에 한 번 보여 준다
-        setPassedVersion(latest.version);
-        setFixedNote(true);
-        await fetchGame();
-        setSelected(latest.version);
-        setPopup({ version: latest.version, confirm: true });
         return;
       }
       const left = (await fetchGame())?.autofixLeft ?? 0;
@@ -215,6 +211,9 @@ export default function MakerEditor({ roomCode, aiId }: { roomCode: string; aiId
         <div style={{ ...columnStyle, gap: 14, alignItems: "center", justifyContent: "center", textAlign: "center", minHeight: "70vh" }}>
           <p style={{ fontSize: 56 }}>{published.emoji}</p>
           <p style={{ fontSize: 20, fontWeight: 900 }}>“{published.title}” 확정!</p>
+          {published.fixedVersion !== null && (
+            <p style={{ fontSize: 13, color: "#9be59b" }}>🔧 자동 테스트에서 찾은 문제를 AI가 고쳐서 v{published.fixedVersion}으로 확정했어요.</p>
+          )}
           <p style={{ fontSize: 14, opacity: 0.75 }}>이제 방 친구들과 같이 할 수 있어요.</p>
           <Link href={`/r/${roomCode}/maker`} style={{ ...primaryButton, textDecoration: "none", width: "100%", maxWidth: 320 }}>
             🎮 게임 목록으로

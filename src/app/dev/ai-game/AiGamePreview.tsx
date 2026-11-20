@@ -64,7 +64,6 @@ export default function AiGamePreview() {
         <button onClick={() => test("좋은 예제", SAMPLE)}>자동 테스트: 좋은 예제</button>
         <button onClick={() => test("문제 예제", BROKEN)}>자동 테스트: 문제 예제</button>
         <button onClick={() => setPopup(true)}>팝업으로 미리보기</button>
-
       </div>
       <p id="smoke-result" style={{ fontSize: 13 }}>{result}</p>
       {popup && <PreviewPopup html={html} title="바나나 연타" emoji="🍌" version={1} onClose={() => setPopup(false)} onConfirm={() => setPopup(false)} />}

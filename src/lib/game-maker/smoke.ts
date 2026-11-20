@@ -5,8 +5,10 @@
 export const SMOKE_VIRTUAL_LIMIT_MS = 6 * 60_000;
 /** 실제 시간으로 이만큼 지나면 테스트를 멈춘다 */
 export const SMOKE_REAL_LIMIT_MS = 45_000;
-/** 실제 시간으로 이만큼 가상 시계가 안 움직이면 멈춘 것으로 본다 */
+/** 실제 시간으로 이만큼 한 걸음 응답이 없으면 멈춘 것으로 본다 */
 export const SMOKE_STALL_MS = 5_000;
+/** 테스트가 두 화면의 시계를 한 번에 움직이는 걸음 (가상 시간) */
+export const SMOKE_STEP_MS = 100;
 /** 확정 한 번에 AI 자동 수정은 최대 이만큼 */
 export const AUTOFIX_MAX = 3;
 
@@ -43,11 +45,12 @@ export function problemsForAI(problems: string[]): string {
 }
 
 // ── iframe 안 스크립트 (테스트 모드에서만 넣는다) ──
-// 1) 시간 빨리 감기: setTimeout/setInterval/requestAnimationFrame/Date.now/performance.now 를 가상 시계로 바꾸고,
-//    MessageChannel 로 쉬지 않고 돌린다. 2) 오류 수집. 3) 화면 아무 곳이나 가끔 눌러 본다(버튼 처리 오류 찾기).
+// 1) 시간 빨리 감기: setTimeout/setInterval/requestAnimationFrame/Date.now/performance.now 를 가상 시계로 바꾼다.
+//    시계는 스스로 가지 않고, 테스트(부모)가 { advance, to } 를 보낼 때마다 그 시각까지만 간다.
+//    두 화면이 한 걸음씩 같이 가고, 걸음 사이에 보낸 메시지는 다음 걸음 전에 모두에게 전달된다 (실제처럼 메시지가 제때 도착).
+// 2) 오류 수집. 3) 화면 아무 곳이나 가끔 눌러 본다(버튼 처리 오류 찾기).
 export const SMOKE_HARNESS_SCRIPT = `(function(){
   window.__UKIKI_TEST__ = true;
-  var LIMIT = ${SMOKE_VIRTUAL_LIMIT_MS};
   var RealDate = Date, base = RealDate.now(), T = { now: 0, seq: 0, timers: [] };
   function report(type, data){ parent.postMessage({ __ukikiTest: true, type: type, data: data }, "*"); }
   function vnow(){ return base + T.now; }
@@ -71,7 +74,7 @@ export const SMOKE_HARNESS_SCRIPT = `(function(){
   window.requestAnimationFrame = function(fn){ return add(function(){ fn(T.now); }, 33, false, []); };
   window.cancelAnimationFrame = clear;
   function msg(e){ return (e && (e.message || e.reason && e.reason.message)) || String(e && e.reason || e); }
-  window.addEventListener("error", function(e){ report("error", msg(e) + (e.lineno ? " (줄 " + e.lineno + ")" : "")); });
+  window.addEventListener("error", function(e){ report("error", msg(e)); });
   window.addEventListener("unhandledrejection", function(e){ report("error", "Promise 오류: " + msg(e)); });
   function tapSomething(){
     var els = document.body ? document.body.querySelectorAll("*") : [];
@@ -90,22 +93,25 @@ export const SMOKE_HARNESS_SCRIPT = `(function(){
     } catch (e) { report("error", msg(e)); }
   }
   add(tapSomething, 400, true, []);
-  var ch = new MessageChannel(), lastTick = -1;
-  ch.port1.onmessage = function(){
-    var start = RealDate.now();
-    while (RealDate.now() - start < 12) {
-      if (window.__UKIKI_STOP__) return;
-      if (T.timers.length === 0) { T.now += 50; break; }
+  function advance(to){
+    var guard = 0;
+    for (;;) {
       T.timers.sort(function(a, b){ return a.at - b.at || a.id - b.id; });
-      var t = T.timers.shift();
+      var t = T.timers[0];
+      if (!t || t.at > to || ++guard > 20000) break;
+      T.timers.shift();
       if (t.at > T.now) T.now = t.at;
       if (t.repeat) { t.at = T.now + t.delay; T.timers.push(t); }
       try { if (typeof t.fn === "function") t.fn.apply(window, t.args); } catch (err) { report("error", msg(err)); }
     }
-    if (Math.floor(T.now / 1000) !== lastTick) { lastTick = Math.floor(T.now / 1000); report("tick", T.now); }
-    if (T.now < LIMIT) ch.port2.postMessage(0); else report("limit", T.now);
-  };
-  window.addEventListener("load", function(){ ch.port2.postMessage(0); });
+    T.now = to;
+    report("at", to);
+  }
+  window.addEventListener("message", function(e){
+    if (e.source !== parent || !e.data || e.data.__ukikiTestCmd !== "advance") return;
+    advance(Number(e.data.to) || 0);
+  });
+  window.addEventListener("load", function(){ report("loaded", 0); });
 })();`;
 
 // 키트를 쓰는지 기록 (키트 다음, 게임 앞에 넣는다)
