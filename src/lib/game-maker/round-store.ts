@@ -6,6 +6,7 @@ import { enabledGames } from "@/lib/ukiki/features";
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import type { KitEndResult, KitEvent } from "./kit";
 import { AI_ROUND_MAX_MS, normalizeEnd, winnersFromScores } from "./round";
+import { decideWaiting, waitInfo, type WaitInfo } from "@/lib/ukiki/waiting";
 
 async function isMember(code: string, me: string) {
   const rows = (await getSql()`select 1 from uk_room_members where room_code = ${code} and kakao_id = ${me}`) as unknown[];
@@ -63,20 +64,25 @@ export async function joinAiRound(code: string, id: number, me: string) {
   return true;
 }
 
-/** 준비완료. 2명 이상 모두 준비면 3초 뒤 시작: 시드·참여자 확정 */
+/** 준비완료 (취소도 가능). 누른 뒤 바로 시작할 때인지 본다 */
 export async function setAiRoundReady(code: string, id: number, me: string, ready: boolean) {
-  const sql = getSql();
-  await sql`update uk_ai_round_players set ready = ${ready} where game_id = ${id} and kakao_id = ${me}`;
+  await getSql()`
+    update uk_ai_round_players p set ready = ${ready}
+    where p.game_id = ${id} and p.kakao_id = ${me}
+      and exists (select 1 from uk_ai_rounds r where r.game_id = p.game_id and r.started_at is null)
+  `;
+  await tickAiRound(code, id);
+}
+
+/** 대기실 규칙대로 시작하거나 닫는다. 시작: 3초 뒤로 시작 시각·시드·참여자(준비완료한 사람) 확정 */
+export async function tickAiRound(code: string, id: number) {
+  const d = await decideWaiting(code, id, "ai");
+  if (d.kind !== "start") return;
   const seed = Math.floor(Math.random() * 2147483647);
-  await sql`
+  await getSql()`
     update uk_ai_rounds r
-    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}),
-        seed = ${seed},
-        members = (select array_agg(p.kakao_id order by p.joined_at, p.kakao_id) from uk_ai_round_players p where p.game_id = r.game_id)
+    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}), seed = ${seed}, members = ${d.members}
     where r.game_id = ${id} and r.started_at is null
-      and exists (select 1 from uk_room_games g where g.id = ${id} and g.room_code = ${code})
-      and (select count(*) from uk_ai_round_players p where p.game_id = r.game_id) >= 2
-      and not exists (select 1 from uk_ai_round_players p where p.game_id = r.game_id and not p.ready)
   `;
 }
 
@@ -152,7 +158,7 @@ export type AiRoundState = {
   events: KitEvent[];
   result: KitEndResult | null;
   scores: Record<string, number | null>;
-};
+} & WaitInfo;
 
 export async function getAiRoundState(code: string, id: number, me: string, afterSeq: number): Promise<AiRoundState | null> {
   const sql = getSql();
@@ -219,5 +225,6 @@ export async function getAiRoundState(code: string, id: number, me: string, afte
     events,
     result: r.ended_at ? { winners: r.winners ?? [], teamSuccess: r.team_success === true } : null,
     scores: Object.fromEntries(players.map((p) => [p.kakao_id, p.score === null ? null : Number(p.score)])),
+    ...(await waitInfo(code, id)),
   };
 }

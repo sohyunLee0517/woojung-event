@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { normalizeRoomCode } from "@/lib/ukiki/rooms";
-import { getPinballState, joinPinball, setPinballReady } from "@/lib/pinball/store";
+import { getPinballState, joinPinball, setPinballReady, tickPinball } from "@/lib/pinball/store";
 
 type Ctx = { params: Promise<{ code: string; id: string }> };
 
@@ -13,6 +13,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   const code = normalizeRoomCode(p.code);
   const id = Number(p.id);
   await joinPinball(code, id, me);
+  await tickPinball(code, id); // 대기 제한 시간이 됐으면 시작하거나 노게임
   const state = await getPinballState(code, id, me);
   if (!state) return NextResponse.json({ ok: false }, { status: 404 });
   return NextResponse.json({ ok: true, state });

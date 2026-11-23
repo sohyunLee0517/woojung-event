@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import SnackStage, { type SnackPhase } from "./SnackStage";
 import type { SnackState } from "@/lib/snack/store";
-import { countdownLeft, readyPhase, showGoBurst } from "@/lib/ukiki/ready";
+import { countdownLeft, readyPhase, waitLeftSeconds, showGoBurst } from "@/lib/ukiki/ready";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
 
 const POLL_MS = 800;
@@ -60,6 +60,8 @@ export default function SnackGame({ roomCode, gameId, me }: { roomCode: string; 
   return (
     <SnackStage
       backHref={`/r/${roomCode}`}
+      cancelled={state.cancelled}
+      wait={{ leftSeconds: waitLeftSeconds(state.waitUntil ? new Date(state.waitUntil).getTime() : null, serverNow), roomSize: state.roomSize }}
       phase={phase}
       players={players}
       meId={me}

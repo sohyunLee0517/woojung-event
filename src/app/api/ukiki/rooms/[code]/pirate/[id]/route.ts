@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { normalizeRoomCode } from "@/lib/ukiki/rooms";
-import { getPirateState, joinPirate, setPirateReady, stab } from "@/lib/pirate/store";
+import { getPirateState, joinPirate, setPirateReady, stab, tickPirate } from "@/lib/pirate/store";
 
 type Ctx = { params: Promise<{ code: string; id: string }> };
 
@@ -13,6 +13,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   const code = normalizeRoomCode(p.code);
   const id = Number(p.id);
   await joinPirate(code, id, me);
+  await tickPirate(code, id); // 대기 제한 시간이 됐으면 시작하거나 노게임
   const state = await getPirateState(code, id, me);
   if (!state) return NextResponse.json({ ok: false }, { status: 404 });
   return NextResponse.json({ ok: true, state });

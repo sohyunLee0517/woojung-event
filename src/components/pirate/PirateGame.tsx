@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import PirateStage, { type PiratePhase } from "./PirateStage";
 import type { PirateState } from "@/lib/pirate/store";
-import { countdownLeft, readyPhase, showGoBurst } from "@/lib/ukiki/ready";
+import { countdownLeft, readyPhase, waitLeftSeconds, showGoBurst } from "@/lib/ukiki/ready";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
 
 const POLL_MS = 700;
@@ -52,6 +52,8 @@ export default function PirateGame({ roomCode, gameId, me }: { roomCode: string;
   return (
     <PirateStage
       backHref={`/r/${roomCode}`}
+      cancelled={state.cancelled}
+      wait={{ leftSeconds: waitLeftSeconds(state.waitUntil ? new Date(state.waitUntil).getTime() : null, serverNow), roomSize: state.roomSize }}
       phase={phase}
       players={state.players}
       meId={me}

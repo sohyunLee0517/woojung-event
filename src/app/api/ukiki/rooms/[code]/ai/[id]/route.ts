@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { normalizeRoomCode } from "@/lib/ukiki/rooms";
 import { parseKitMessage } from "@/lib/game-maker/kit";
-import { endAiRound, getAiRoundState, joinAiRound, postAiEvent, setAiRoundReady, submitAiScore } from "@/lib/game-maker/round-store";
+import { endAiRound, getAiRoundState, joinAiRound, postAiEvent, setAiRoundReady, submitAiScore, tickAiRound } from "@/lib/game-maker/round-store";
 
 type Ctx = { params: Promise<{ code: string; id: string }> };
 
@@ -15,6 +15,7 @@ export async function GET(req: Request, { params }: Ctx) {
   const id = Number(p.id);
   const after = Number(new URL(req.url).searchParams.get("after") ?? 0) || 0;
   await joinAiRound(code, id, me);
+  await tickAiRound(code, id); // 대기 제한 시간이 됐으면 시작하거나 노게임
   const state = await getAiRoundState(code, id, me, after);
   if (!state) return NextResponse.json({ ok: false }, { status: 404 });
   return NextResponse.json({ ok: true, state });

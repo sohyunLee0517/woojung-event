@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import TopBar from "@/components/ukiki/TopBar";
-import { CountdownView, GoBurst, ReadyStyles, ReadyWaiting } from "@/components/ukiki/ReadyRoom";
+import { CountdownView, GoBurst, NoGame, ReadyStyles, ReadyWaiting } from "@/components/ukiki/ReadyRoom";
 import type { PinballState } from "@/lib/pinball/store";
-import { countdownLeft, readyPhase, showGoBurst } from "@/lib/ukiki/ready";
+import { countdownLeft, readyPhase, showGoBurst, waitLeftSeconds } from "@/lib/ukiki/ready";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
 import PinballStage, { type PinballPlayer } from "./PinballStage";
 import PinballResult from "./PinballResult";
@@ -73,8 +73,10 @@ export default function PinballGame({ roomCode, gameId, me }: { roomCode: string
           title="🎱 랜덤 핀볼"
           sub={<p style={{ fontSize: 12, opacity: 0.6 }}>👥 {(state.members.length || state.players.length)}명 참여</p>}
         />
-        {rp === "WAITING" && (
+        {rp === "WAITING" && state.cancelled && <NoGame emoji="🎱" backHref={`/r/${roomCode}`} />}
+        {rp === "WAITING" && !state.cancelled && (
           <ReadyWaiting
+            wait={{ leftSeconds: waitLeftSeconds(state.waitUntil ? new Date(state.waitUntil).getTime() : null, serverNow), roomSize: state.roomSize }}
             players={state.players}
             meId={me}
             emoji="🎱"

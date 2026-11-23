@@ -3,6 +3,7 @@ import { getSql } from "@/lib/db";
 import { enabledGames } from "@/lib/ukiki/features";
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import { clampCut, judgeSnack, type SnackResult } from "./logic";
+import { decideWaiting, waitInfo, type WaitInfo } from "@/lib/ukiki/waiting";
 
 async function isMember(code: string, me: string) {
   const rows = (await getSql()`select 1 from uk_room_members where room_code = ${code} and kakao_id = ${me}`) as unknown[];
@@ -46,18 +47,24 @@ export async function joinSnack(code: string, id: number, me: string) {
   return true;
 }
 
-/** 준비완료. 2명 이상 모두 준비면 3초 뒤 시작, 그때 들어와 있던 사람만 자른다 */
+/** 준비완료 (취소도 가능). 누른 뒤 바로 시작할 때인지 본다 */
 export async function setSnackReady(code: string, id: number, me: string, ready: boolean) {
-  const sql = getSql();
-  await sql`update uk_snack_players set ready = ${ready} where game_id = ${id} and kakao_id = ${me}`;
-  await sql`
+  await getSql()`
+    update uk_snack_players sp set ready = ${ready}
+    where sp.game_id = ${id} and sp.kakao_id = ${me}
+      and exists (select 1 from uk_snack_games sg where sg.game_id = sp.game_id and sg.started_at is null)
+  `;
+  await tickSnack(code, id);
+}
+
+/** 대기실 규칙대로 시작하거나 닫는다. 시작하면 준비완료한 사람만 자른다 */
+export async function tickSnack(code: string, id: number) {
+  const d = await decideWaiting(code, id, "snack");
+  if (d.kind !== "start") return;
+  await getSql()`
     update uk_snack_games sg
-    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}),
-        members = (select array_agg(sp.kakao_id order by sp.joined_at, sp.kakao_id) from uk_snack_players sp where sp.game_id = sg.game_id)
+    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}), members = ${d.members}
     where sg.game_id = ${id} and sg.started_at is null
-      and exists (select 1 from uk_room_games g where g.id = ${id} and g.room_code = ${code})
-      and (select count(*) from uk_snack_players sp where sp.game_id = sg.game_id) >= 2
-      and not exists (select 1 from uk_snack_players sp where sp.game_id = sg.game_id and not sp.ready)
   `;
 }
 
@@ -70,7 +77,7 @@ export type SnackState = {
   serverNow: string;
   myCut: number | null;
   result: SnackResult | null;
-};
+} & WaitInfo;
 
 export async function getSnackState(code: string, id: number, me: string): Promise<SnackState | null> {
   const sql = getSql();
@@ -101,6 +108,7 @@ export async function getSnackState(code: string, id: number, me: string): Promi
     serverNow: new Date().toISOString(),
     myCut: rows.find((r) => r.kakao_id === me)?.cut ?? null,
     result,
+    ...(await waitInfo(code, id)),
   };
 }
 

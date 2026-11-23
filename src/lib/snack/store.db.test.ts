@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getSql } from "@/lib/db";
 import { createRoom, enterRoom } from "@/lib/ukiki/rooms";
-import { createSnack, cutSnack, getSnackState, joinSnack, setSnackReady } from "./store";
+import { createSnack, cutSnack, getSnackState, joinSnack, setSnackReady, tickSnack } from "./store";
+import { waitOver } from "@/lib/ukiki/test-helpers";
 
 // 과자 나눠먹기 (실제 DB): 한 번만 자르고, 모두 자를 때까지 남의 몫은 비밀
 const hasDb = !!process.env.DATABASE_URL;
@@ -35,6 +36,8 @@ describe.skipIf(!hasDb)("과자 나눠먹기 (실제 DB)", () => {
     if (g.kind !== "created") throw new Error("과자 실패 " + g.kind);
     for (const p of players) await joinSnack(room, g.id, p);
     for (const p of [A, ...players]) await setSnackReady(room, g.id, p, true);
+    await waitOver(g.id); // 방 인원 일부만 준비했으면 제한 시간이 지나야 시작
+    await tickSnack(room, g.id);
     return g.id;
   }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ghostButton, primaryButton, UK } from "./styles";
+import BackToRoom from "./BackToRoom";
 
 // 모든 게임 공통 화면: 준비완료 대기실 → 3·2·1 → 시작!
 //   <ReadyStyles /> 를 게임 화면에 한 번 깔고, 단계에 맞게 아래 컴포넌트를 보여 준다.
@@ -69,6 +70,7 @@ export function ReadyWaiting({
   waitingFor = "친구가 들어오길 기다리는 중",
   onReady,
   onNudge,
+  wait,
 }: {
   players: ReadyPlayer[];
   meId: string;
@@ -76,12 +78,14 @@ export function ReadyWaiting({
   waitingFor?: string;
   onReady: () => void;
   onNudge?: () => Promise<string>;
+  /** 대기 제한 시간이 있는 게임: 남은 초와 방 인원. 전원 준비면 바로, 아니면 시간이 되면 준비한 사람끼리 시작 */
+  wait?: WaitView;
 }) {
   const [nudgeMsg, setNudgeMsg] = useState("");
   const [nudging, setNudging] = useState(false);
   const myReady = players.find((p) => p.id === meId)?.ready === true;
   const readyCount = players.filter((p) => p.ready).length;
-  const allReady = players.length >= 2 && readyCount === players.length;
+  const allReady = wait ? readyCount >= 2 && readyCount >= wait.roomSize : players.length >= 2 && readyCount === players.length;
   const nudge = async () => {
     if (!onNudge || nudging) return;
     setNudging(true);
@@ -91,7 +95,13 @@ export function ReadyWaiting({
   return (
     <div style={readyCenter}>
       <p style={{ fontSize: 56 }}>{emoji}</p>
-      <p style={{ fontSize: 18, fontWeight: 800 }}>{allReady ? "곧 시작해요!" : `준비 ${readyCount}/${players.length}`}</p>
+      <p style={{ fontSize: 18, fontWeight: 800 }}>{allReady ? "곧 시작해요!" : `준비 ${readyCount}/${wait ? wait.roomSize : players.length}`}</p>
+      {wait && !allReady && (
+        <p role="timer" style={{ fontSize: 13, color: UK.yellow, lineHeight: 1.5 }}>
+          ⏳ {waitClock(wait.leftSeconds)}{" "}
+          {readyCount >= 2 ? `뒤 준비한 ${readyCount}명이서 시작해요` : "안에 2명 이상 준비완료하지 않으면 게임이 취소돼요"}
+        </p>
+      )}
       <PlayerChips players={players} meId={meId} showReady />
       <button
         onClick={onReady}
@@ -112,6 +122,30 @@ export function ReadyWaiting({
         </button>
       )}
       {nudgeMsg && <p style={{ fontSize: 13, color: UK.yellow }}>{nudgeMsg}</p>}
+    </div>
+  );
+}
+
+export type WaitView = { leftSeconds: number; roomSize: number };
+
+/** 남은 시간 m:ss */
+export function waitClock(seconds: number) {
+  const s = Math.max(0, seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** 노게임: 제한 시간에 준비완료한 사람이 2명이 안 돼서 닫힌 게임 */
+export function NoGame({ emoji, backHref }: { emoji: string; backHref: string }) {
+  return (
+    <div style={readyCenter}>
+      <p style={{ fontSize: 56 }}>{emoji}</p>
+      <p style={{ fontSize: 20, fontWeight: 800 }}>😴 노게임</p>
+      <p style={{ fontSize: 14, opacity: 0.75, lineHeight: 1.6 }}>
+        시간 안에 준비완료한 친구가 2명이 안 돼서
+        <br />
+        게임이 취소됐어요.
+      </p>
+      <BackToRoom href={backHref} primary style={{ width: "100%", maxWidth: 320 }} />
     </div>
   );
 }

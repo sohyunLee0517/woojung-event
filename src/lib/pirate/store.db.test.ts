@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getSql } from "@/lib/db";
 import { createRoom, enterRoom } from "@/lib/ukiki/rooms";
 import { HOLES } from "./logic";
-import { createPirate, getPirateState, joinPirate, setPirateReady, stab } from "./store";
+import { createPirate, getPirateState, joinPirate, setPirateReady, stab, tickPirate } from "./store";
+import { waitOver } from "@/lib/ukiki/test-helpers";
 
 // 해적 무찌르기 (실제 DB): 입장 순서대로 차례, 함정은 끝날 때까지 비밀
 const hasDb = !!process.env.DATABASE_URL;
@@ -43,7 +44,7 @@ describe.skipIf(!hasDb)("해적 무찌르기 (실제 DB)", () => {
     await getSql()`update uk_room_games set status = 'ended' where id = ${id}`;
   });
 
-  it("방 멤버만 들어오고, 모두 준비하면 3초 뒤 시작 · 입장 순서대로 차례", async () => {
+  it("방 멤버만 들어오고, 방 인원이 모두 준비하면 3초 뒤 시작 · 입장 순서대로 차례", async () => {
     const id = await open();
     expect(await joinPirate(room, id, OUT)).toBe(false);
     await joinPirate(room, id, C); // 만든 A 다음, C 가 B 보다 먼저 들어옴
@@ -64,6 +65,8 @@ describe.skipIf(!hasDb)("해적 무찌르기 (실제 DB)", () => {
     const id = await open();
     await joinPirate(room, id, B);
     for (const p of [A, B]) await setPirateReady(room, id, p, true);
+    await waitOver(id); // 방 인원 3명 중 2명만 준비 → 제한 시간이 지나야 둘이서 시작
+    await tickPirate(room, id);
     await startNow(id);
     const trap = ((await getSql()`select trap_hole from uk_pirate_games where game_id = ${id}`) as { trap_hole: number }[])[0].trap_hole;
     const safe = [...Array(HOLES).keys()].filter((h) => h !== trap);
@@ -81,6 +84,8 @@ describe.skipIf(!hasDb)("해적 무찌르기 (실제 DB)", () => {
     const id = await open();
     await joinPirate(room, id, B);
     for (const p of [A, B]) await setPirateReady(room, id, p, true);
+    await waitOver(id); // 방 인원 3명 중 2명만 준비 → 제한 시간이 지나야 둘이서 시작
+    await tickPirate(room, id);
     await startNow(id);
     const trap = ((await getSql()`select trap_hole from uk_pirate_games where game_id = ${id}`) as { trap_hole: number }[])[0].trap_hole;
     expect(await stab(room, id, A, trap)).toEqual({ ok: true, outcome: "fail" });
@@ -95,6 +100,8 @@ describe.skipIf(!hasDb)("해적 무찌르기 (실제 DB)", () => {
     const id = await open();
     await joinPirate(room, id, B);
     for (const p of [A, B]) await setPirateReady(room, id, p, true);
+    await waitOver(id); // 방 인원 3명 중 2명만 준비 → 제한 시간이 지나야 둘이서 시작
+    await tickPirate(room, id);
     await startNow(id);
     const trap = ((await getSql()`select trap_hole from uk_pirate_games where game_id = ${id}`) as { trap_hole: number }[])[0].trap_hole;
     const safe = [...Array(HOLES).keys()].filter((h) => h !== trap);

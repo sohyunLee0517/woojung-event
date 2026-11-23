@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TopBar from "@/components/ukiki/TopBar";
 import BackToRoom from "@/components/ukiki/BackToRoom";
-import { CountdownView, GoBurst, ReadyStyles, ReadyWaiting, readyCenter } from "@/components/ukiki/ReadyRoom";
-import { countdownLeft, readyPhase, showGoBurst } from "@/lib/ukiki/ready";
+import { CountdownView, GoBurst, NoGame, ReadyStyles, ReadyWaiting, readyCenter } from "@/components/ukiki/ReadyRoom";
+import { countdownLeft, readyPhase, showGoBurst, waitLeftSeconds } from "@/lib/ukiki/ready";
 import { requestNudge } from "@/lib/ukiki/nudge-client";
 import type { AiRoundState } from "@/lib/game-maker/round-store";
 import type { KitEvent, KitMessage, KitPlayer } from "@/lib/game-maker/kit";
@@ -95,10 +95,12 @@ export default function AiRoundGame({ roomCode, gameId, me }: { roomCode: string
             </p>
           }
         />
-        {rp === "WAITING" && (
+        {rp === "WAITING" && state.cancelled && <NoGame emoji={state.emoji} backHref={backHref} />}
+        {rp === "WAITING" && !state.cancelled && (
           <>
             {state.rules && <p style={{ fontSize: 13, opacity: 0.75, textAlign: "center" }}>📜 {state.rules}</p>}
             <ReadyWaiting
+              wait={{ leftSeconds: waitLeftSeconds(state.waitUntil ? new Date(state.waitUntil).getTime() : null, serverNow), roomSize: state.roomSize }}
               players={state.players}
               meId={me}
               emoji={state.emoji}

@@ -3,6 +3,7 @@ import { getSql } from "@/lib/db";
 import { enabledGames } from "@/lib/ukiki/features";
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import { HOLES, judgeStab, pickTrap, turnOf, type PirateStatus, type StabOutcome } from "./logic";
+import { decideWaiting, waitInfo, type WaitInfo } from "@/lib/ukiki/waiting";
 
 async function isMember(code: string, me: string) {
   const rows = (await getSql()`select 1 from uk_room_members where room_code = ${code} and kakao_id = ${me}`) as unknown[];
@@ -53,18 +54,24 @@ export async function joinPirate(code: string, id: number, me: string) {
   return true;
 }
 
-/** 준비완료. 들어온 사람이 2명 이상이고 모두 준비면 3초 뒤 시작, 차례는 입장 순서 */
+/** 준비완료 (취소도 가능). 누른 뒤 바로 시작할 때인지 본다 */
 export async function setPirateReady(code: string, id: number, me: string, ready: boolean) {
-  const sql = getSql();
-  await sql`update uk_pirate_players set ready = ${ready} where game_id = ${id} and kakao_id = ${me}`;
-  await sql`
+  await getSql()`
+    update uk_pirate_players pp set ready = ${ready}
+    where pp.game_id = ${id} and pp.kakao_id = ${me}
+      and exists (select 1 from uk_pirate_games pg where pg.game_id = pp.game_id and pg.started_at is null)
+  `;
+  await tickPirate(code, id);
+}
+
+/** 대기실 규칙대로 시작하거나 닫는다. 시작하면 준비완료한 사람이 입장 순서대로 칼을 꽂는다 */
+export async function tickPirate(code: string, id: number) {
+  const d = await decideWaiting(code, id, "pirate");
+  if (d.kind !== "start") return;
+  await getSql()`
     update uk_pirate_games pg
-    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}),
-        turn_order = (select array_agg(pp.kakao_id order by pp.joined_at, pp.kakao_id) from uk_pirate_players pp where pp.game_id = pg.game_id)
+    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}), turn_order = ${d.members}
     where pg.game_id = ${id} and pg.started_at is null
-      and exists (select 1 from uk_room_games g where g.id = ${id} and g.room_code = ${code})
-      and (select count(*) from uk_pirate_players pp where pp.game_id = pg.game_id) >= 2
-      and not exists (select 1 from uk_pirate_players pp where pp.game_id = pg.game_id and not pp.ready)
   `;
 }
 
@@ -80,7 +87,7 @@ export type PirateState = {
   status: PirateStatus;
   /** 끝난 뒤에만 */
   trap?: number;
-};
+} & WaitInfo;
 
 export async function getPirateState(code: string, id: number, me: string): Promise<PirateState | null> {
   const sql = getSql();
@@ -112,6 +119,7 @@ export async function getPirateState(code: string, id: number, me: string): Prom
     stabs: stabs.map((s) => ({ hole: Number(s.hole), kakaoId: s.kakao_id })),
     status,
     ...(ended ? { trap: Number(g[0].trap_hole) } : {}),
+    ...(await waitInfo(code, id)),
   };
 }
 

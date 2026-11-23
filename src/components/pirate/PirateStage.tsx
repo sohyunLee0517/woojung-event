@@ -3,7 +3,7 @@ import BackToRoom from "@/components/ukiki/BackToRoom";
 
 import { useEffect, useRef, useState } from "react";
 import TopBar from "@/components/ukiki/TopBar";
-import { CountdownView, GoBurst, PlayerChips, ReadyStyles, ReadyWaiting, readyCenter, type ReadyPlayer } from "@/components/ukiki/ReadyRoom";
+import { CountdownView, GoBurst, PlayerChips, NoGame, ReadyStyles, ReadyWaiting, readyCenter, type ReadyPlayer, type WaitView } from "@/components/ukiki/ReadyRoom";
 import { ghostButton, UK } from "@/components/ukiki/styles";
 import { HOLES } from "@/lib/pirate/logic";
 
@@ -96,7 +96,13 @@ export default function PirateStage({
   onReady,
   onStab,
   onNudge,
+  wait,
+  cancelled = false,
 }: {
+  /** 대기 제한 시간 (남은 초·방 인원) */
+  wait?: WaitView;
+  /** 노게임으로 닫힘 */
+  cancelled?: boolean;
   backHref: string;
   phase: PiratePhase;
   players: ReadyPlayer[];
@@ -165,8 +171,9 @@ export default function PirateStage({
       <div style={{ maxWidth: 480, width: "100%", margin: "0 auto", padding: 16, flex: 1, display: "flex", flexDirection: "column" }}>
         <TopBar backHref={backHref} title="🏴‍☠️ 해적 무찌르기" sub={<p style={{ fontSize: 12, opacity: 0.6 }}>👥 {players.length}명 참여</p>} />
 
-        {phase === "WAITING" && (
-          <ReadyWaiting players={players} meId={meId} emoji="🏴‍☠️" waitingFor="친구가 들어오길 기다리는 중" onReady={onReady} onNudge={onNudge} />
+        {phase === "WAITING" && cancelled && <NoGame emoji="🏴‍☠️" backHref={backHref} />}
+        {phase === "WAITING" && !cancelled && (
+          <ReadyWaiting players={players} meId={meId} emoji="🏴‍☠️" waitingFor="친구가 들어오길 기다리는 중" onReady={onReady} onNudge={onNudge} wait={wait} />
         )}
         {phase === "COUNTDOWN" && <CountdownView count={count} hint="🗡️ 입장한 순서대로 칼을 꽂아요" />}
         {showGo && <GoBurst label="시작! 🗡️" />}

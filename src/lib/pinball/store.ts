@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { enabledGames } from "@/lib/ukiki/features";
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import { simulateOrder } from "./logic";
+import { decideWaiting, waitInfo, type WaitInfo } from "@/lib/ukiki/waiting";
 
 async function isMember(code: string, me: string) {
   const rows = (await getSql()`select 1 from uk_room_members where room_code = ${code} and kakao_id = ${me}`) as unknown[];
@@ -55,20 +56,29 @@ export async function joinPinball(code: string, id: number, me: string) {
   return true;
 }
 
-/** 준비완료. 2명 이상 모두 준비면 3초 뒤 시작: 시드·참여자·순서를 확정하고, 순위가 정해졌으니 바로 지난 게임으로 */
+/** 준비완료 (취소도 가능). 누른 뒤 바로 시작할 때인지 본다 */
 export async function setPinballReady(code: string, id: number, me: string, ready: boolean) {
+  await getSql()`
+    update uk_pinball_players pp set ready = ${ready}
+    where pp.game_id = ${id} and pp.kakao_id = ${me}
+      and exists (select 1 from uk_pinball_games pg where pg.game_id = pp.game_id and pg.started_at is null)
+  `;
+  await tickPinball(code, id);
+}
+
+/**
+ * 대기실 규칙대로 시작하거나 닫는다 (준비 누를 때·화면이 상태를 불러올 때마다 부른다).
+ * 시작: 3초 뒤로 시작 시각·시드·참여자(준비완료한 사람)를 확정하고 순서를 계산, 순위가 정해졌으니 바로 지난 게임으로.
+ */
+export async function tickPinball(code: string, id: number) {
+  const d = await decideWaiting(code, id, "pinball");
+  if (d.kind !== "start") return;
   const sql = getSql();
-  await sql`update uk_pinball_players set ready = ${ready} where game_id = ${id} and kakao_id = ${me}`;
   const seed = Math.floor(Math.random() * 2147483647);
   const started = (await sql`
     update uk_pinball_games pg
-    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}),
-        seed = ${seed},
-        members = (select array_agg(pp.kakao_id order by pp.joined_at, pp.kakao_id) from uk_pinball_players pp where pp.game_id = pg.game_id)
+    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}), seed = ${seed}, members = ${d.members}
     where pg.game_id = ${id} and pg.started_at is null
-      and exists (select 1 from uk_room_games g where g.id = ${id} and g.room_code = ${code})
-      and (select count(*) from uk_pinball_players pp where pp.game_id = pg.game_id) >= 2
-      and not exists (select 1 from uk_pinball_players pp where pp.game_id = pg.game_id and not pp.ready)
     returning pg.members
   `) as { members: string[] }[];
   if (!started[0]) return;
@@ -92,7 +102,7 @@ export type PinballState = {
   members: string[];
   /** 도착 순서 (1등 = 오늘의 주인공) */
   order: string[];
-};
+} & WaitInfo;
 
 export async function getPinballState(code: string, id: number, me: string): Promise<PinballState | null> {
   const sql = getSql();
@@ -115,5 +125,6 @@ export async function getPinballState(code: string, id: number, me: string): Pro
     seed: g[0].seed === null ? null : Number(g[0].seed),
     members: g[0].members ?? [],
     order: g[0].result_order ?? [],
+    ...(await waitInfo(code, id)),
   };
 }
