@@ -2,7 +2,7 @@
 import { getSql } from "@/lib/db";
 import { enabledGames } from "@/lib/ukiki/features";
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
-import { HOLES, judgeStab, pickTrap, turnOf, type PirateStatus, type StabOutcome } from "./logic";
+import { HOLES, judgeStab, pickAutoHole, pickTrap, TURN_LIMIT_MS, turnDeadline, turnOf, type PirateStatus, type StabOutcome } from "./logic";
 import { decideWaiting, waitInfo, type WaitInfo } from "@/lib/ukiki/waiting";
 
 async function isMember(code: string, me: string) {
@@ -67,12 +67,33 @@ export async function setPirateReady(code: string, id: number, me: string, ready
 /** 대기실 규칙대로 시작하거나 닫는다. 시작하면 준비완료한 사람이 입장 순서대로 칼을 꽂는다 */
 export async function tickPirate(code: string, id: number) {
   const d = await decideWaiting(code, id, "pirate");
-  if (d.kind !== "start") return;
-  await getSql()`
-    update uk_pirate_games pg
-    set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}), turn_order = ${d.members}
-    where pg.game_id = ${id} and pg.started_at is null
-  `;
+  if (d.kind === "start") {
+    await getSql()`
+      update uk_pirate_games pg
+      set started_at = now() + make_interval(secs => ${COUNTDOWN_MS / 1000}), turn_order = ${d.members}
+      where pg.game_id = ${id} and pg.started_at is null
+    `;
+    return;
+  }
+  if (d.kind === "gone") await autoStabIfOver(code, id);
+}
+
+/** 지금 차례인 사람이 20초 안에 안 꽂았으면 남은 구멍 중 하나에 대신 꽂는다 (함정일 수도 있다) */
+async function autoStabIfOver(code: string, id: number) {
+  const g = (await getSql()`
+    select pg.turn_order, extract(epoch from pg.started_at) * 1000 as started, extract(epoch from now()) * 1000 as now,
+           (select extract(epoch from max(s.at)) * 1000 from uk_pirate_stabs s where s.game_id = pg.game_id) as last_at,
+           array(select s.hole from uk_pirate_stabs s where s.game_id = pg.game_id order by s.seq) as holes
+    from uk_pirate_games pg
+    where pg.game_id = ${id} and pg.status = 'playing' and pg.started_at <= now()
+  `) as { turn_order: string[] | null; started: number; now: number; last_at: number | null; holes: number[] }[];
+  const r = g[0];
+  if (!r) return;
+  if (Number(r.now) < turnDeadline(Number(r.started), r.last_at === null ? null : Number(r.last_at))) return;
+  const who = turnOf(r.turn_order ?? [], r.holes.length);
+  if (!who) return;
+  // 동시에 여러 화면이 불러도 seq 가 겹치면 한 번만 들어간다
+  await stab(code, id, who, pickAutoHole(r.holes.map(Number)));
 }
 
 export type PirateState = {
@@ -87,6 +108,8 @@ export type PirateState = {
   status: PirateStatus;
   /** 끝난 뒤에만 */
   trap?: number;
+  /** 지금 차례가 끝나는 시각 (지나면 자동으로 꽂힌다) */
+  turnUntil: string | null;
 } & WaitInfo;
 
 export async function getPirateState(code: string, id: number, me: string): Promise<PirateState | null> {
@@ -101,9 +124,10 @@ export async function getPirateState(code: string, id: number, me: string): Prom
     select pp.kakao_id, p.nickname, pp.ready from uk_pirate_players pp join players p on p.kakao_id = pp.kakao_id
     where pp.game_id = ${id} order by pp.joined_at, pp.kakao_id
   `) as { kakao_id: string; nickname: string | null; ready: boolean }[];
-  const stabs = (await sql`select hole, kakao_id from uk_pirate_stabs where game_id = ${id} order by seq`) as {
+  const stabs = (await sql`select hole, kakao_id, at from uk_pirate_stabs where game_id = ${id} order by seq`) as {
     hole: number;
     kakao_id: string;
+    at: string;
   }[];
   const order = g[0].turn_order ?? [];
   const ended = g[0].status !== "playing";
@@ -119,6 +143,10 @@ export async function getPirateState(code: string, id: number, me: string): Prom
     stabs: stabs.map((s) => ({ hole: Number(s.hole), kakaoId: s.kakao_id })),
     status,
     ...(ended ? { trap: Number(g[0].trap_hole) } : {}),
+    turnUntil:
+      status === "playing" && g[0].started_at
+        ? new Date(turnDeadline(new Date(g[0].started_at).getTime(), stabs.length ? new Date(stabs[stabs.length - 1].at).getTime() : null)).toISOString()
+        : null,
     ...(await waitInfo(code, id)),
   };
 }

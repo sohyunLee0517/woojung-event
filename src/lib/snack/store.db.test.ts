@@ -96,4 +96,34 @@ describe.skipIf(!hasDb)("과자 나눠먹기 (실제 DB)", () => {
     expect(await cutSnack(room, id, C, 10)).toEqual({ ok: false, reason: "not_player" });
     await getSql()`update uk_room_games set status = 'ended' where id = ${id}`;
   });
+
+  it("자르기 1분이 지나면 안 자른 사람은 0으로 치고 결과를 보여 준다 (노게임 아님)", async () => {
+    const id = await openWith([B, C]);
+    await startNow(id);
+    await cutSnack(room, id, A, 30);
+    await tickSnack(room, id);
+    expect((await getSnackState(room, id, A))?.result).toBeNull(); // 아직 1분 전
+    expect((await getSnackState(room, id, A))?.cutUntil).not.toBeNull();
+
+    await getSql()`update uk_snack_games set started_at = now() - interval '2 minutes' where game_id = ${id}`;
+    await tickSnack(room, id);
+    const s = await getSnackState(room, id, B);
+    expect(s?.result).toEqual({ status: "success", total: 30 });
+    expect(s?.players.map((p) => [p.id, p.cut])).toEqual([
+      [A, 30],
+      [B, null],
+      [C, null],
+    ]);
+    const g = (await getSql()`select status, outcome from uk_room_games where id = ${id}`) as { status: string; outcome: string }[];
+    expect(g[0]).toEqual({ status: "ended", outcome: "completed" });
+    expect(await cutSnack(room, id, B, 10)).toEqual({ ok: false, reason: "ended" });
+  });
+
+  it("아무도 안 자르고 시간이 지나면 0점으로 끝난다", async () => {
+    const id = await openWith([B]);
+    await getSql()`update uk_snack_games set started_at = now() - interval '2 minutes' where game_id = ${id}`;
+    await tickSnack(room, id);
+    expect((await getSnackState(room, id, A))?.result).toEqual({ status: "success", total: 0 });
+  });
 });
+

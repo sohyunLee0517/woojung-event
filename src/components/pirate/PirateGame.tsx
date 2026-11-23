@@ -60,6 +60,7 @@ export default function PirateGame({ roomCode, gameId, me }: { roomCode: string;
       count={countdownLeft(startedMs, serverNow)}
       showGo={phase === "PLAYING" && showGoBurst(startedMs, serverNow)}
       turnName={turnName}
+      turnLeft={state.turnUntil ? waitLeftSeconds(new Date(state.turnUntil).getTime(), serverNow) : undefined}
       myTurn={phase === "PLAYING" && state.turn === me}
       stabs={state.stabs.map((s) => s.hole)}
       onReady={() => post({ action: "ready", ready: !myReady })}

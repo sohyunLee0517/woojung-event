@@ -110,4 +110,28 @@ describe.skipIf(!hasDb)("해적 무찌르기 (실제 DB)", () => {
     expect(last).toEqual({ ok: true, outcome: "success" });
     expect((await getPirateState(room, id, A))?.status).toBe("success");
   });
+
+  it("내 차례 20초가 지나면 남은 구멍 중 하나에 자동으로 꽂히고 다음 사람 차례가 된다", async () => {
+    const id = await open();
+    await joinPirate(room, id, B);
+    for (const p of [A, B]) await setPirateReady(room, id, p, true);
+    await waitOver(id);
+    await tickPirate(room, id);
+    await startNow(id);
+    await tickPirate(room, id);
+    const before = await getPirateState(room, id, A);
+    expect(before?.stabs).toHaveLength(0); // 아직 20초 전
+    expect(before?.turnUntil).not.toBeNull();
+
+    await getSql()`update uk_pirate_games set started_at = now() - interval '30 seconds' where game_id = ${id}`;
+    await tickPirate(room, id);
+    await tickPirate(room, id); // 연달아 불러도 한 번만 (다음 차례는 방금 시작)
+    const s = await getPirateState(room, id, B);
+    expect(s?.stabs).toHaveLength(1);
+    expect(s?.stabs[0].kakaoId).toBe(A);
+    if (s?.status === "playing") expect(s.turn).toBe(B);
+    else expect(s?.status).toBe("fail"); // 운 나쁘게 함정에 꽂힌 경우
+    await getSql()`update uk_room_games set status = 'ended' where id = ${id}`;
+  });
 });
+

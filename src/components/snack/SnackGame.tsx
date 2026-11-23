@@ -71,6 +71,7 @@ export default function SnackGame({ roomCode, gameId, me }: { roomCode: string; 
       total={state.result?.total ?? null}
       failed={state.result?.status === "fail"}
       spectator={spectator}
+      cutLeft={state.cutUntil && !state.result ? waitLeftSeconds(new Date(state.cutUntil).getTime(), serverNow) : undefined}
       onReady={() => post({ action: "ready", ready: !meRow?.ready })}
       onCut={(amount) => post({ action: "cut", amount })}
       onNudge={() => requestNudge(roomCode, gameId)}

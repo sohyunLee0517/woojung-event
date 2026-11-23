@@ -23,3 +23,17 @@ export function judgeStab(input: { hole: number; trap: number; stabbedBefore: nu
   if (input.stabbedBefore + 1 >= HOLES - 1) return "success";
   return "continue";
 }
+
+/** 내 차례에 주어지는 시간. 지나면 남은 구멍 중 하나에 자동으로 꽂힌다 */
+export const TURN_LIMIT_MS = 20_000;
+
+/** 지금 차례가 끝나는 시각: 게임 시작(또는 앞사람이 꽂은) 시각 + 20초 */
+export function turnDeadline(startedAt: number, lastStabAt: number | null): number {
+  return Math.max(startedAt, lastStabAt ?? 0) + TURN_LIMIT_MS;
+}
+
+/** 아직 안 꽂힌 구멍 중 하나 (함정일 수도 있다) */
+export function pickAutoHole(taken: number[], rand: () => number = Math.random): number {
+  const free = Array.from({ length: HOLES }, (_, h) => h).filter((h) => !taken.includes(h));
+  return free[Math.min(free.length - 1, Math.floor(rand() * free.length))];
+}

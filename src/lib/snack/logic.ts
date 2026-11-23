@@ -17,3 +17,16 @@ export function judgeSnack(cuts: (number | null)[]): SnackResult | null {
   const total = (cuts as number[]).reduce((a, b) => a + b, 0);
   return { status: total > SNACK_TOTAL ? "fail" : "success", total };
 }
+
+/** 시작한 뒤 자를 수 있는 시간. 지나면 안 자른 사람은 0으로 치고 결과를 낸다 */
+export const SNACK_CUT_LIMIT_MS = 60_000;
+
+/** 제한 시간이 지났을 때의 결과: 안 자른 사람(null)은 0. 아무도 안 잘랐으면 0점 */
+export function judgeSnackTimeout(cuts: (number | null)[]): SnackResult {
+  const total = cuts.reduce<number>((a, b) => a + (b ?? 0), 0);
+  return { status: total > SNACK_TOTAL ? "fail" : "success", total };
+}
+
+export function snackCutOver(startedAt: number | null, now: number): boolean {
+  return startedAt !== null && now - startedAt >= SNACK_CUT_LIMIT_MS;
+}

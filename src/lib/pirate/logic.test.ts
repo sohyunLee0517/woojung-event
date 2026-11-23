@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOLES, judgeStab, pickTrap, turnOf } from "./logic";
+import { HOLES, judgeStab, pickTrap, turnOf, pickAutoHole, TURN_LIMIT_MS, turnDeadline } from "./logic";
 
 // 해적 무찌르기 규칙 (순수 함수)
 //   입장 순서대로 돌아가며 구멍에 칼을 꽂는다. 숨은 함정 구멍에 꽂으면 해적이 튀어나와 실패.
@@ -24,4 +24,20 @@ describe("해적 무찌르기 규칙", () => {
     // 이번이 HOLES-1 번째 칼이면 남은 구멍은 함정 하나뿐 → 성공
     expect(judgeStab({ hole: 4, trap: 5, stabbedBefore: HOLES - 2 })).toBe("success");
   });
+
+  it("내 차례는 20초: 시작(또는 앞사람이 꽂은) 시각부터 센다", () => {
+    expect(TURN_LIMIT_MS).toBe(20_000);
+    expect(turnDeadline(1000, null)).toBe(1000 + TURN_LIMIT_MS);
+    expect(turnDeadline(1000, 9000)).toBe(9000 + TURN_LIMIT_MS);
+  });
+
+  it("시간이 지나면 남은 구멍 중 하나에 임의로 꽂는다 (함정도 포함)", () => {
+    const taken = [0, 1, 2];
+    expect(pickAutoHole(taken, () => 0)).toBe(3);
+    expect(pickAutoHole(taken, () => 0.9999)).toBe(HOLES - 1);
+    const all = new Set(Array.from({ length: 200 }, (_, i) => pickAutoHole(taken, () => i / 200)));
+    expect([...all].some((h) => taken.includes(h))).toBe(false);
+    expect(all.size).toBe(HOLES - taken.length);
+  });
 });
+

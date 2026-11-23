@@ -98,7 +98,10 @@ export default function PirateStage({
   onNudge,
   wait,
   cancelled = false,
+  turnLeft,
 }: {
+  /** 지금 차례에 남은 초 (0 이 되면 자동으로 꽂힌다) */
+  turnLeft?: number;
   /** 대기 제한 시간 (남은 초·방 인원) */
   wait?: WaitView;
   /** 노게임으로 닫힘 */
@@ -183,7 +186,13 @@ export default function PirateStage({
             <PlayerChips players={players} meId={meId} />
             <p style={{ fontSize: 17, fontWeight: 800, minHeight: 24, color: myTurn ? UK.yellow : "#fff" }}>
               {playing && (myTurn ? "내 차례! 구멍을 눌러 칼을 꽂아요" : `${turnName ?? "친구"}님 차례`)}
+              {playing && turnLeft !== undefined && (
+                <span role="timer" style={{ marginLeft: 8, color: turnLeft <= 5 ? "#ff6b6b" : UK.yellow }}>
+                  ⏳ {turnLeft}초
+                </span>
+              )}
             </p>
+            {playing && myTurn && <p style={{ fontSize: 12, color: UK.yellow, marginTop: -12 }}>시간이 지나면 아무 구멍에나 자동으로 꽂혀요</p>}
             <p style={{ fontSize: 12, opacity: 0.5, marginTop: -12 }}>통을 좌우로 밀면 돌아가요 · 남은 칼 {Math.max(0, HOLES - 1 - stabs.length)}개</p>
 
             {/* 통 */}

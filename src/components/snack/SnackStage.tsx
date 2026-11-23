@@ -66,7 +66,10 @@ export default function SnackStage({
   onNudge,
   wait,
   cancelled = false,
+  cutLeft,
 }: {
+  /** 자를 수 있는 남은 초 (0 이 되면 안 자른 사람은 0으로 치고 결과) */
+  cutLeft?: number;
   /** 대기 제한 시간 (남은 초·방 인원) */
   wait?: WaitView;
   /** 노게임으로 닫힘 */
@@ -140,6 +143,11 @@ export default function SnackStage({
                   : `완료! 친구들 기다리는 중 (${doneCount}/${players.length})`}
             </p>
             <p style={{ fontSize: 12, opacity: 0.55, marginTop: -12 }}>기회는 한 번뿐 · 다른 친구가 얼마나 가져갔는지는 몰라요</p>
+            {cutLeft !== undefined && (
+              <p role="timer" style={{ fontSize: 13, fontWeight: 700, marginTop: -10, color: cutLeft <= 10 ? "#ff6b6b" : UK.yellow }}>
+                ⏳ {cutLeft}초 · 시간 안에 안 자르면 0으로 쳐요
+              </p>
+            )}
 
             <div style={{ position: "relative", width: BAR_W, height: 160 }}>
               {/* 과자 */}

@@ -74,6 +74,11 @@ describe("AI 에게 보낼 대화", () => {
     expect(SYSTEM_PROMPT).not.toContain("순한 버전으로 바꿔서 만든다");
   });
 
+  it("차례가 있는 게임은 차례마다 제한 시간을 두고, 지나면 임의로 행동한 것으로 넘어가게 한다", () => {
+    expect(SYSTEM_PROMPT).toContain("차례마다 제한 시간");
+    expect(SYSTEM_PROMPT).toContain("임의의 행동");
+  });
+
   it("외부 이미지·링크 없이 도형·이모지·텍스트만", () => {
     expect(SYSTEM_PROMPT).toContain("도형·이모지·텍스트");
     expect(SYSTEM_PROMPT).toContain("링크");
