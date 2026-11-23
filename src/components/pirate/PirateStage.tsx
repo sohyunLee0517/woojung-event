@@ -192,7 +192,6 @@ export default function PirateStage({
                 </span>
               )}
             </p>
-            {playing && myTurn && <p style={{ fontSize: 12, color: UK.yellow, marginTop: -12 }}>시간이 지나면 아무 구멍에나 자동으로 꽂혀요</p>}
             <p style={{ fontSize: 12, opacity: 0.5, marginTop: -12 }}>통을 좌우로 밀면 돌아가요 · 남은 칼 {Math.max(0, HOLES - 1 - stabs.length)}개</p>
 
             {/* 통 */}

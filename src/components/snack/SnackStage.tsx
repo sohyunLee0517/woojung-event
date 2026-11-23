@@ -145,7 +145,7 @@ export default function SnackStage({
             <p style={{ fontSize: 12, opacity: 0.55, marginTop: -12 }}>기회는 한 번뿐 · 다른 친구가 얼마나 가져갔는지는 몰라요</p>
             {cutLeft !== undefined && (
               <p role="timer" style={{ fontSize: 13, fontWeight: 700, marginTop: -10, color: cutLeft <= 10 ? "#ff6b6b" : UK.yellow }}>
-                ⏳ {cutLeft}초 · 시간 안에 안 자르면 0으로 쳐요
+                ⏳ {cutLeft}초
               </p>
             )}
 
