@@ -1,8 +1,5 @@
 // 위치 기반 규칙에 쓰는 값들. 숫자만 바꾸면 규칙이 바뀐다.
 
-/** 이 거리(m) 안에 있어야 공격할 수 있다. */
-export const ATTACK_RANGE_M = 50;
-
 /**
  * GPS 오차 반경이 이 값(m) 이하일 때만 '야외'로 본다.
  * 실내에서는 GPS 대신 와이파이·기지국으로 위치를 잡아 오차가 커지므로, 오차로 실내를 걸러 낸다.
@@ -35,16 +32,4 @@ export function distanceMeters(
 
 export function isOutdoorFix(accuracy: number): boolean {
   return accuracy <= OUTDOOR_MAX_ACCURACY_M;
-}
-
-/** 두 사람 다 야외로 판정되고, 거리가 사정거리 안이면 공격 가능 */
-export function canAttack(
-  me: { lat: number; lng: number; accuracy: number },
-  target: { lat: number; lng: number; accuracy: number },
-): boolean {
-  return (
-    isOutdoorFix(me.accuracy) &&
-    isOutdoorFix(target.accuracy) &&
-    distanceMeters(me, target) <= ATTACK_RANGE_M
-  );
 }

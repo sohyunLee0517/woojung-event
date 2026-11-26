@@ -19,7 +19,7 @@ describe("앱 푸시(FCM) 토큰 저장 형식", () => {
 });
 
 describe("sendFcmPush (Firebase 로 바로 보내기)", () => {
-  const payload = { title: "🃏 퀴즈 열림", body: "맞히면 카드", url: "/birthday-gacha/g/ABC234", tag: "quiz" };
+  const payload = { title: "🎱 새 게임", body: "같이 해요", url: "/birthday-gacha/g/ABC234", tag: "game" };
 
   it("알림 + 눌렀을 때 열 주소(data.url)를 보낸다", async () => {
     const send = vi.fn().mockResolvedValue("projects/x/messages/1");
@@ -31,7 +31,7 @@ describe("sendFcmPush (Firebase 로 바로 보내기)", () => {
       android: {
         priority: "high",
         ttl: 7_200_000,
-        notification: { channelId: "default", tag: "quiz", sound: "default" },
+        notification: { channelId: "default", tag: "game", sound: "default" },
       },
     });
   });

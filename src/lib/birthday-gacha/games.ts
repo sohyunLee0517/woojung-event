@@ -1,7 +1,6 @@
 import { COUNTDOWN_MS } from "@/lib/ukiki/ready";
 import { randomInt } from "node:crypto";
 import { getSql } from "@/lib/db";
-import { getQuizStatus, type QuizStatus } from "@/lib/birthday-gacha/quiz";
 import { pushDeviceCount } from "@/lib/birthday-gacha/push";
 import {
   CAPSULE_SET,
@@ -9,7 +8,6 @@ import {
   MAX_PLAYERS,
   ONLINE_WITHIN_S,
   TICKETS_ON_JOIN,
-  type CardType,
   type Grade,
 } from "@/lib/birthday-gacha/rules";
 
@@ -94,10 +92,8 @@ export type GamePlayer = {
   minutes: number;
   online: boolean;
   isHost: boolean;
-  /** 안 쓴 특수카드 수 (종류는 본인만 안다) */
   /** 준비완료 눌렀는지 (3·2·1 시작 전) */
   ready: boolean;
-  cardCount: number;
 };
 
 export type DrawnCapsule = {
@@ -117,10 +113,6 @@ export type GameState = {
   totalCapsules: number;
   remainingCapsules: number;
   drawn: DrawnCapsule[];
-  /** 내가 가진 안 쓴 특수카드 */
-  myCards: { id: number; type: CardType; acquiredAt: string }[];
-  /** 내 퀴즈 상태 (참가 전이면 null) */
-  quiz: QuizStatus | null;
   /** 남은 시간 계산용 서버 시각 */
   serverNow: string;
   /** 모두 준비완료가 되어 잡힌 시작 시각 (3·2·1 뒤). 아직이면 null */
@@ -157,9 +149,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
 
   const players = (await sql`
     select gp.kakao_id, p.nickname, p.profile_image, gp.seat, gp.tickets, gp.money, gp.minutes, gp.ready,
-           (now() - gp.last_seen_at) < make_interval(secs => ${ONLINE_WITHIN_S}) as online,
-           (select count(*)::int from player_cards pc
-             where pc.game_code = gp.game_code and pc.kakao_id = gp.kakao_id and pc.used_at is null) as card_count
+           (now() - gp.last_seen_at) < make_interval(secs => ${ONLINE_WITHIN_S}) as online
     from game_players gp
     join players p on p.kakao_id = gp.kakao_id
     where gp.game_code = ${code}
@@ -174,14 +164,7 @@ export async function getGameState(code: string, me: string): Promise<GameState 
     minutes: number;
     ready: boolean;
     online: boolean;
-    card_count: number;
   }[];
-
-  const myCards = (await sql`
-    select id, card_type, acquired_at from player_cards
-    where game_code = ${code} and kakao_id = ${me} and used_at is null
-    order by acquired_at
-  `) as { id: number; card_type: CardType; acquired_at: string }[];
 
   const capsules = (await sql`
     select slot, grade, amount, minutes, drawn_by, drawn_at
@@ -222,17 +205,10 @@ export async function getGameState(code: string, me: string): Promise<GameState 
       online: p.online,
       isHost: p.kakao_id === host,
       ready: p.ready,
-      cardCount: p.card_count,
     })),
     totalCapsules: capsules.length,
     remainingCapsules: capsules.length - drawn.length,
     drawn,
-    myCards: myCards.map((c) => ({
-      id: Number(c.id),
-      type: c.card_type,
-      acquiredAt: new Date(c.acquired_at).toISOString(),
-    })),
-    quiz: await getQuizStatus(code, me),
     serverNow: new Date().toISOString(),
     startedAt: game[0].started_at ? new Date(game[0].started_at).toISOString() : null,
     pushDevices: await pushDeviceCount(me),

@@ -56,7 +56,6 @@ describe("deviceLabel", () => {
 });
 
 describe("buildPlayerStatus", () => {
-  const windowStart = "2026-11-18T05:00:00.000Z"; // 14–16시 구간
   const players = [
     { kakaoId: "a", nickname: "소현", lastSeenAt: "2026-11-18T05:20:00.000Z" },
     { kakaoId: "b", nickname: "영한", lastSeenAt: "2026-11-18T03:00:00.000Z" },
@@ -85,20 +84,7 @@ describe("buildPlayerStatus", () => {
       createdAt: "2026-11-01T00:00:00.000Z",
     },
   ];
-  const notifications = [
-    { kakaoId: "a", windowStart, sentAt: "2026-11-18T05:00:30.000Z" },
-    { kakaoId: "b", windowStart: "2026-11-18T03:00:00.000Z", sentAt: "2026-11-18T03:00:20.000Z" },
-  ];
-
-  const build = (nowIso: string, answered: string[] = []) =>
-    buildPlayerStatus({
-      players,
-      subscriptions,
-      notifications,
-      answeredThisWindow: new Set(answered),
-      windowStart,
-      now: new Date(nowIso).getTime(),
-    });
+  const build = (nowIso: string) => buildPlayerStatus({ players, subscriptions, now: new Date(nowIso).getTime() });
 
   it("사람마다 등록한 기기 수와 종류를 모은다", () => {
     const rows = build("2026-11-18T05:30:00.000Z");
@@ -113,42 +99,16 @@ describe("buildPlayerStatus", () => {
     expect(rows.find((r) => r.kakaoId === "c")?.targetDevice).toBeNull();
   });
 
-  it("마지막 알림 시각과 이번 구간 알림 여부를 알려 준다", () => {
-    const rows = build("2026-11-18T05:30:00.000Z");
-    expect(rows.find((r) => r.kakaoId === "a")).toMatchObject({
-      lastNotifiedAt: "2026-11-18T05:00:30.000Z",
-      notifiedThisWindow: true,
-    });
-    expect(rows.find((r) => r.kakaoId === "b")).toMatchObject({
-      lastNotifiedAt: "2026-11-18T03:00:20.000Z",
-      notifiedThisWindow: false,
-    });
-    expect(rows.find((r) => r.kakaoId === "c")?.lastNotifiedAt).toBeNull();
-  });
-
   it("알림을 안 켠 사람은 '알림 꺼짐' 경고", () => {
     const rows = build("2026-11-18T05:30:00.000Z");
     expect(rows.find((r) => r.kakaoId === "c")?.warning).toBe("알림 꺼짐");
   });
 
-  it("구간이 열리고 10분이 지났는데 알림도 안 가고 퀴즈도 안 풀었으면 '이번 알림 누락' 경고", () => {
-    const rows = build("2026-11-18T05:30:00.000Z");
-    expect(rows.find((r) => r.kakaoId === "b")?.warning).toBe("이번 알림 누락");
-  });
-
-  it("구간이 열린 지 10분 전이면 아직 보내는 중이라 경고하지 않는다", () => {
-    const rows = build("2026-11-18T05:05:00.000Z");
-    expect(rows.find((r) => r.kakaoId === "b")?.warning).toBeNull();
-  });
-
-  it("이미 이번 구간 퀴즈를 풀었으면 알림이 안 갔어도 괜찮다", () => {
-    const rows = build("2026-11-18T05:30:00.000Z", ["b"]);
-    expect(rows.find((r) => r.kakaoId === "b")).toMatchObject({ answeredThisWindow: true, warning: null });
-  });
-
-  it("알림도 켰고 이번 구간 알림도 갔으면 경고 없음", () => {
+  it("알림을 켠 사람은 경고 없음 (퀴즈 구간 알림은 없어졌다)", () => {
     const rows = build("2026-11-18T05:30:00.000Z");
     expect(rows.find((r) => r.kakaoId === "a")?.warning).toBeNull();
+    expect(rows.find((r) => r.kakaoId === "b")?.warning).toBeNull();
+    expect(rows[0]).not.toHaveProperty("notifiedThisWindow");
   });
 
   it("20초 안에 접속했으면 온라인", () => {

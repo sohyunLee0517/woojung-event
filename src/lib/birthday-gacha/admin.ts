@@ -33,9 +33,6 @@ export function deviceLabel(userAgent: string | null | undefined): string {
   return "PC";
 }
 
-/** 구간이 열린 뒤 이 시간이 지나도 알림이 안 갔으면 누락으로 본다 */
-export const MISSED_AFTER_MS = 10 * 60 * 1000;
-
 export type PlayerStatusRow = {
   kakaoId: string;
   nickname: string | null;
@@ -46,37 +43,17 @@ export type PlayerStatusRow = {
   pushOn: boolean;
   /** 알림이 실제로 가는 기기 (마지막으로 접속한 기기) */
   targetDevice: string | null;
-  lastNotifiedAt: string | null;
-  notifiedThisWindow: boolean;
-  answeredThisWindow: boolean;
-  warning: "알림 꺼짐" | "이번 알림 누락" | null;
+  warning: "알림 꺼짐" | null;
 };
 
 export function buildPlayerStatus(input: {
   players: { kakaoId: string; nickname: string | null; lastSeenAt: string | null }[];
   subscriptions: { kakaoId: string; endpoint: string; userAgent: string | null; lastSeenAt: string; createdAt: string }[];
-  notifications: { kakaoId: string; windowStart: string; sentAt: string }[];
-  answeredThisWindow: Set<string>;
-  windowStart: string;
   now: number;
 }): PlayerStatusRow[] {
-  const windowStartMs = new Date(input.windowStart).getTime();
-
   return input.players.map((p) => {
     const subs = input.subscriptions.filter((s) => s.kakaoId === p.kakaoId);
-    const mine = input.notifications
-      .filter((n) => n.kakaoId === p.kakaoId)
-      .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
-    const notifiedThisWindow = mine.some((n) => new Date(n.windowStart).getTime() === windowStartMs);
-    const answered = input.answeredThisWindow.has(p.kakaoId);
     const pushOn = subs.length > 0;
-
-    let warning: PlayerStatusRow["warning"] = null;
-    if (!pushOn) warning = "알림 꺼짐";
-    else if (!notifiedThisWindow && !answered && input.now - windowStartMs >= MISSED_AFTER_MS) {
-      warning = "이번 알림 누락";
-    }
-
     return {
       kakaoId: p.kakaoId,
       nickname: p.nickname,
@@ -86,10 +63,7 @@ export function buildPlayerStatus(input: {
       deviceLabels: subs.map((s) => deviceLabel(s.userAgent)),
       pushOn,
       targetDevice: pushOn ? deviceLabel(pickTargetSubscription(subs)?.userAgent) : null,
-      lastNotifiedAt: mine[0]?.sentAt ?? null,
-      notifiedThisWindow,
-      answeredThisWindow: answered,
-      warning,
+      warning: pushOn ? null : "알림 꺼짐",
     };
   });
 }

@@ -4,7 +4,6 @@ import type { CSSProperties } from "react";
 import { auth } from "@/auth";
 import { adminAccess, adminIds } from "@/lib/birthday-gacha/admin";
 import { getAdminOverview } from "@/lib/birthday-gacha/admin-data";
-import { notifyQuizWindow } from "@/lib/birthday-gacha/notify";
 import BackButton from "./BackButton";
 import { stickyHeaderStyle } from "@/components/ukiki/TopBar";
 import { enabledGames, GAME_TYPES, setGameEnabled } from "@/lib/ukiki/features";
@@ -79,7 +78,6 @@ export default async function AdminPage() {
   }
 
   const [overview, switches, reports] = await Promise.all([getAdminOverview(), enabledGames(), listReports(30)]);
-  const missed = overview.rows.filter((r) => r.warning === "이번 알림 누락").length;
 
   return (
     <main style={page}>
@@ -165,28 +163,6 @@ export default async function AdminPage() {
           ))}
         </section>
 
-        <section style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,.06)" }}>
-          <p style={{ fontSize: 13, opacity: 0.7 }}>지금 퀴즈 구간</p>
-          <p style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}>{overview.windowLabel}</p>
-          <p style={{ fontSize: 13, marginTop: 6, color: missed > 0 ? "#f97316" : "#86efac" }}>
-            {missed > 0 ? `⚠️ 알림 누락 ${missed}명` : "✅ 누락 없음"}
-          </p>
-          <form
-            action={async () => {
-              "use server";
-              const s = await auth();
-              if (adminAccess(s?.user?.id, adminIds()) !== "ok") return;
-              await notifyQuizWindow();
-              revalidatePath("/birthday-gacha/admin");
-            }}
-            style={{ marginTop: 10 }}
-          >
-            <button type="submit" style={{ ...button, background: "#FEE500", color: "#191919" }}>
-              🔔 아직 못 받은 사람에게 지금 보내기
-            </button>
-          </form>
-        </section>
-
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700 }}>👥 플레이어 알림 현황 (최근 14일 방)</h2>
           {overview.rows.length === 0 && <p style={{ opacity: 0.6, fontSize: 14 }}>아직 플레이어가 없어요.</p>}
@@ -213,10 +189,6 @@ export default async function AdminPage() {
                 {r.pushOn
                   ? `🔔 알림 받는 기기: ${r.targetDevice} (마지막 접속) · 등록 ${r.devices}대`
                   : "🔕 알림 안 켬"}
-              </p>
-              <p style={{ opacity: 0.85 }}>
-                마지막 퀴즈 알림 {clock(r.lastNotifiedAt)} · 이번 구간 {r.notifiedThisWindow ? "보냄" : "안 보냄"}
-                {r.answeredThisWindow ? " · 퀴즈 완료" : ""}
               </p>
               <p style={{ opacity: 0.6 }}>
                 마지막 접속 {clock(r.lastSeenAt)} · 방 {r.games.join(", ")}

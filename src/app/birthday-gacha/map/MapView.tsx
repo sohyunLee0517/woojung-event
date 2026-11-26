@@ -5,16 +5,12 @@ import type * as Leaflet from "leaflet";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
-  ATTACK_RANGE_M,
   LOCATION_POLL_INTERVAL_MS,
   LOCATION_SEND_INTERVAL_MS,
-  OUTDOOR_MAX_ACCURACY_M,
-  canAttack,
   distanceMeters,
   isOutdoorFix,
 } from "@/lib/birthday-gacha/geo";
 import type { PlayerLocation } from "@/lib/birthday-gacha/locations";
-import { LEGACY } from "@/lib/ukiki/legacy";
 
 type Fix = { lat: number; lng: number; accuracy: number };
 
@@ -233,7 +229,6 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
   }, [players, myFix, myId, mapReady]);
 
   const others = players.filter((p) => p.kakaoId !== myId);
-  const outdoor = myFix ? isOutdoorFix(myFix.accuracy) : false;
 
 
   return (
@@ -307,10 +302,7 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
           <p>내 위치를 찾는 중…</p>
         ) : (
           <p>
-            {LEGACY.mapAttack && (outdoor ? "🟢 야외 · " : "🟠 실내 또는 위치 부정확 · ")}내 위치 오차 ±{Math.round(myFix.accuracy)}m
-            {LEGACY.mapAttack && !outdoor && (
-              <span style={{ opacity: 0.7 }}> (±{OUTDOOR_MAX_ACCURACY_M}m 이하일 때만 공격 가능)</span>
-            )}
+            내 위치 오차 ±{Math.round(myFix.accuracy)}m
           </p>
         )}
 
@@ -318,7 +310,6 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
           {others.length === 0 && <p style={{ opacity: 0.6 }}>지도에 다른 친구가 아직 없어요.</p>}
           {others.map((p) => {
             const dist = myFix ? distanceMeters(myFix, p) : null;
-            const attackable = myFix ? canAttack(myFix, p) : false;
             return (
               <div key={p.kakaoId} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span>
@@ -330,14 +321,8 @@ export default function MapView({ roomCode, backHref, backLabel }: { roomCode: s
                     {secondsAgo(p.updatedAt) <= ONLINE_WITHIN_S
                       ? "접속 중"
                       : `${Math.floor(secondsAgo(p.updatedAt) / 60)}분 전`}
-                    {LEGACY.mapAttack && !isOutdoorFix(p.accuracy) && " · 실내"}
                   </span>
                 </span>
-                {LEGACY.mapAttack && (
-                  <span style={{ color: attackable ? "#22c55e" : "#888", whiteSpace: "nowrap" }}>
-                    {attackable ? "⚔️ 공격 가능" : `${ATTACK_RANGE_M}m 밖`}
-                  </span>
-                )}
               </div>
             );
           })}
