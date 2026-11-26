@@ -50,29 +50,6 @@ create table if not exists capsules (
   primary key (game_code, slot)
 );
 
--- 뽑기권 퀴즈 참여 기록. 2시간 구간(window_start)마다 한 번만 풀 수 있다.
-create table if not exists quiz_attempts (
-  game_code    text        not null references games(code) on delete cascade,
-  kakao_id     text        not null references players(kakao_id) on delete cascade,
-  window_start timestamptz not null,
-  question_id  text        not null,
-  choice       integer,
-  correct      boolean,
-  issued_at    timestamptz not null default now(),
-  answered_at  timestamptz,
-  primary key (game_code, kakao_id, window_start)
-);
-
--- 퀴즈로 얻은 특수카드. used_at 이 비어 있으면 아직 안 쓴 카드.
-create table if not exists player_cards (
-  id          bigserial   primary key,
-  game_code   text        not null references games(code) on delete cascade,
-  kakao_id    text        not null references players(kakao_id) on delete cascade,
-  card_type   text        not null,
-  acquired_at timestamptz not null default now(),
-  used_at     timestamptz
-);
-
 -- 웹 푸시 구독. 기기(브라우저)마다 하나씩 생긴다.
 create table if not exists push_subscriptions (
   endpoint   text        primary key,
@@ -81,14 +58,6 @@ create table if not exists push_subscriptions (
   auth       text        not null,
   user_agent text,
   created_at timestamptz not null default now()
-);
-
--- 2시간 구간마다 퀴즈 알림을 한 번만 보내기 위한 기록
-create table if not exists push_notifications (
-  kakao_id     text        not null references players(kakao_id) on delete cascade,
-  window_start timestamptz not null,
-  sent_at      timestamptz not null default now(),
-  primary key (kakao_id, window_start)
 );
 
 -- 알림은 마지막으로 접속한 기기 한 대에만 보낸다. 방 화면을 열 때마다 갱신된다.
@@ -550,4 +519,13 @@ alter table uk_ai_game_versions add column if not exists test_problems text[]
 alter table uk_ai_games add column if not exists autofix_count int not null default 0
 ;
 alter table uk_ai_games add column if not exists pending_fix text[]
+;
+
+-- ===== 레거시 정리 (2026-11-26) =====
+-- 퀴즈·특수카드·퀴즈 알림 기록 테이블은 기능을 없애면서 지운다.
+drop table if exists quiz_attempts
+;
+drop table if exists player_cards
+;
+drop table if exists push_notifications
 ;

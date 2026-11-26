@@ -18,7 +18,6 @@ export async function deleteAccount(kakaoId: string): Promise<DeleteAccountResul
   for (const r of memberOf) await sql`select * from uk_leave_room(${r.room_code}, ${kakaoId})`;
   await sql`delete from player_locations where kakao_id = ${kakaoId}`;
   await sql`delete from push_subscriptions where kakao_id = ${kakaoId}`;
-  await sql`delete from push_notifications where kakao_id = ${kakaoId}`;
   await sql`update players set nickname = ${DELETED_NAME}, profile_image = null, deleted_at = now() where kakao_id = ${kakaoId}`;
   return { ok: true };
 }
